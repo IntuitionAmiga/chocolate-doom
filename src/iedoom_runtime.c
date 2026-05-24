@@ -10,6 +10,8 @@ struct FILE
     int unused;
 };
 
+#define IE_TERM_OUT 0x000F0700u
+
 volatile unsigned int iedoom_bss_probe;
 int errno;
 FILE *stdin;
@@ -17,9 +19,46 @@ FILE *stdout;
 FILE *stderr;
 
 int iedoom_main(void);
+void *memset(void *dest, int c, size_t n);
+void *memcpy(void *dest, const void *src, size_t n);
+int vprintf(const char *fmt, va_list args);
+int vfprintf(FILE *stream, const char *fmt, va_list args);
+int vsnprintf(char *s, size_t n, const char *fmt, va_list args);
 
-static unsigned char iedoom_heap[32u * 1024u * 1024u];
 static size_t iedoom_heap_used;
+static unsigned int iedoom_rand_state = 1;
+
+#ifdef IEDOOM_GUEST
+#define IEDOOM_HEAP_BASE ((unsigned char *) 0x02000000u)
+#define IEDOOM_HEAP_SIZE (96u * 1024u * 1024u)
+#else
+static unsigned char iedoom_heap[32u * 1024u * 1024u];
+#define IEDOOM_HEAP_BASE iedoom_heap
+#define IEDOOM_HEAP_SIZE sizeof(iedoom_heap)
+#endif
+
+typedef union
+{
+    size_t size;
+    long double align;
+} iedoom_heap_header_t;
+
+static void iedoom_term_write_char(char c)
+{
+#ifdef IEDOOM_GUEST
+    *(volatile unsigned int *) IE_TERM_OUT = (unsigned char) c;
+#else
+    (void) c;
+#endif
+}
+
+static void iedoom_term_write_string(const char *s)
+{
+    while (s != NULL && *s != '\0')
+    {
+        iedoom_term_write_char(*s++);
+    }
+}
 
 static int iedoom_tolower(int c)
 {
@@ -52,6 +91,11 @@ int isalnum(int c)
     return isalpha(c) || isdigit(c);
 }
 
+int isprint(int c)
+{
+    return c >= 32 && c < 127;
+}
+
 int toupper(int c)
 {
     if (c >= 'a' && c <= 'z')
@@ -65,6 +109,25 @@ int toupper(int c)
 int tolower(int c)
 {
     return iedoom_tolower(c);
+}
+
+char *setlocale(int category, const char *locale)
+{
+    (void) category;
+    (void) locale;
+    return NULL;
+}
+
+struct iedoom_lconv
+{
+    char *decimal_point;
+};
+
+struct iedoom_lconv *localeconv(void)
+{
+    static struct iedoom_lconv lc = { "." };
+
+    return &lc;
 }
 
 void exit(int status)
@@ -82,7 +145,8 @@ void exit(int status)
 
 void *malloc(size_t size)
 {
-    void *result;
+    iedoom_heap_header_t *header;
+    size_t total;
 
     size = (size + 7u) & ~7u;
     if (size == 0)
@@ -90,13 +154,28 @@ void *malloc(size_t size)
         size = 8;
     }
 
-    if (size > sizeof(iedoom_heap) - iedoom_heap_used)
+    total = size + sizeof(*header);
+    if (total < size || total > IEDOOM_HEAP_SIZE - iedoom_heap_used)
     {
         return NULL;
     }
 
-    result = iedoom_heap + iedoom_heap_used;
-    iedoom_heap_used += size;
+    header = (iedoom_heap_header_t *) (IEDOOM_HEAP_BASE + iedoom_heap_used);
+    header->size = size;
+    iedoom_heap_used += total;
+    return header + 1;
+}
+
+void *calloc(size_t nmemb, size_t size)
+{
+    size_t total = nmemb * size;
+    void *result = malloc(total);
+
+    if (result != NULL)
+    {
+        memset(result, 0, total);
+    }
+
     return result;
 }
 
@@ -105,45 +184,272 @@ void free(void *ptr)
     (void) ptr;
 }
 
+void *realloc(void *ptr, size_t size)
+{
+    iedoom_heap_header_t *header;
+    void *result;
+    size_t copy_size;
+
+    if (ptr == NULL)
+    {
+        return malloc(size);
+    }
+
+    if (size == 0)
+    {
+        free(ptr);
+        return NULL;
+    }
+
+    header = ((iedoom_heap_header_t *) ptr) - 1;
+    copy_size = header->size < size ? header->size : size;
+    result = malloc(size);
+
+    if (result != NULL)
+    {
+        memcpy(result, ptr, copy_size);
+    }
+
+    return result;
+}
+
+char *SDL_GetPrefPath(const char *org, const char *app)
+{
+    (void) org;
+    (void) app;
+    return NULL;
+}
+
+void SDL_free(void *mem)
+{
+    free(mem);
+}
+
 int printf(const char *fmt, ...)
 {
-    (void) fmt;
-    return 0;
+    va_list args;
+    int result;
+
+    va_start(args, fmt);
+    result = vprintf(fmt, args);
+    va_end(args);
+    return result;
 }
 
 int fprintf(FILE *stream, const char *fmt, ...)
 {
-    (void) stream;
-    (void) fmt;
-    return 0;
+    va_list args;
+    int result;
+
+    va_start(args, fmt);
+    result = vfprintf(stream, fmt, args);
+    va_end(args);
+    return result;
 }
 
 int vprintf(const char *fmt, va_list args)
 {
-    (void) fmt;
-    (void) args;
-    return 0;
+    char buf[512];
+    int result = vsnprintf(buf, sizeof(buf), fmt, args);
+
+    iedoom_term_write_string(buf);
+    return result;
 }
 
 int vfprintf(FILE *stream, const char *fmt, va_list args)
 {
     (void) stream;
-    (void) fmt;
-    (void) args;
-    return 0;
+    return vprintf(fmt, args);
+}
+
+static void iedoom_format_putc(char *s, size_t n, size_t *pos,
+                               size_t *written, char c)
+{
+    if (*pos + 1 < n)
+    {
+        s[*pos] = c;
+        ++*pos;
+    }
+    ++*written;
+}
+
+static void iedoom_format_write(char *s, size_t n, size_t *pos,
+                                size_t *written, const char *text)
+{
+    if (text == NULL)
+    {
+        text = "(null)";
+    }
+
+    while (*text != '\0')
+    {
+        iedoom_format_putc(s, n, pos, written, *text);
+        ++text;
+    }
+}
+
+static void iedoom_format_uint(char *s, size_t n, size_t *pos,
+                               size_t *written, unsigned long long value,
+                               unsigned int base, int width, char pad,
+                               int uppercase)
+{
+    char tmp[32];
+    int len = 0;
+    const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
+
+    do
+    {
+        tmp[len++] = digits[value % base];
+        value /= base;
+    } while (value != 0 && len < (int) sizeof(tmp));
+
+    while (width > len)
+    {
+        iedoom_format_putc(s, n, pos, written, pad);
+        --width;
+    }
+
+    while (len > 0)
+    {
+        iedoom_format_putc(s, n, pos, written, tmp[--len]);
+    }
 }
 
 int vsnprintf(char *s, size_t n, const char *fmt, va_list args)
 {
-    (void) fmt;
-    (void) args;
+    size_t pos = 0;
+    size_t written = 0;
+
+    if (fmt == NULL)
+    {
+        fmt = "";
+    }
+
+    while (*fmt != '\0')
+    {
+        int width = 0;
+        char pad = ' ';
+        int long_count = 0;
+
+        if (*fmt != '%')
+        {
+            iedoom_format_putc(s, n, &pos, &written, *fmt++);
+            continue;
+        }
+
+        ++fmt;
+        if (*fmt == '%')
+        {
+            iedoom_format_putc(s, n, &pos, &written, *fmt++);
+            continue;
+        }
+
+        if (*fmt == '0')
+        {
+            pad = '0';
+            ++fmt;
+        }
+        while (*fmt >= '0' && *fmt <= '9')
+        {
+            width = width * 10 + (*fmt - '0');
+            ++fmt;
+        }
+        while (*fmt == 'l')
+        {
+            ++long_count;
+            ++fmt;
+        }
+
+        switch (*fmt)
+        {
+            case 's':
+                iedoom_format_write(s, n, &pos, &written,
+                                    va_arg(args, const char *));
+                break;
+            case 'c':
+                iedoom_format_putc(s, n, &pos, &written,
+                                   (char) va_arg(args, int));
+                break;
+            case 'd':
+            case 'i':
+            {
+                long long value;
+
+                if (long_count >= 2)
+                {
+                    value = va_arg(args, long long);
+                }
+                else if (long_count == 1)
+                {
+                    value = va_arg(args, long);
+                }
+                else
+                {
+                    value = va_arg(args, int);
+                }
+
+                if (value < 0)
+                {
+                    iedoom_format_putc(s, n, &pos, &written, '-');
+                    value = -value;
+                }
+                iedoom_format_uint(s, n, &pos, &written,
+                                   (unsigned long long) value, 10, width,
+                                   pad, 0);
+                break;
+            }
+            case 'u':
+            case 'x':
+            case 'X':
+            {
+                unsigned long long value;
+
+                if (long_count >= 2)
+                {
+                    value = va_arg(args, unsigned long long);
+                }
+                else if (long_count == 1)
+                {
+                    value = va_arg(args, unsigned long);
+                }
+                else
+                {
+                    value = va_arg(args, unsigned int);
+                }
+
+                iedoom_format_uint(s, n, &pos, &written, value,
+                                   *fmt == 'u' ? 10u : 16u, width, pad,
+                                   *fmt == 'X');
+                break;
+            }
+            case 'p':
+                iedoom_format_write(s, n, &pos, &written, "0x");
+                iedoom_format_uint(s, n, &pos, &written,
+                                   (unsigned long long) (size_t)
+                                   va_arg(args, void *),
+                                   16, width, '0', 0);
+                break;
+            default:
+                iedoom_format_putc(s, n, &pos, &written, '%');
+                if (*fmt != '\0')
+                {
+                    iedoom_format_putc(s, n, &pos, &written, *fmt);
+                }
+                break;
+        }
+
+        if (*fmt != '\0')
+        {
+            ++fmt;
+        }
+    }
 
     if (n > 0)
     {
-        s[0] = '\0';
+        s[pos < n ? pos : n - 1] = '\0';
     }
 
-    return 0;
+    return (int) written;
 }
 
 int snprintf(char *s, size_t n, const char *fmt, ...)
@@ -164,15 +470,36 @@ int sscanf(const char *s, const char *fmt, ...)
     return 0;
 }
 
+int fscanf(FILE *stream, const char *fmt, ...)
+{
+    (void) stream;
+    (void) fmt;
+    return -1;
+}
+
 int puts(const char *s)
 {
-    (void) s;
+    iedoom_term_write_string(s);
+    iedoom_term_write_char('\n');
     return 0;
 }
 
 int putchar(int c)
 {
+    iedoom_term_write_char((char) c);
     return c;
+}
+
+int isatty(int fd)
+{
+    (void) fd;
+    return 0;
+}
+
+int fileno(FILE *stream)
+{
+    (void) stream;
+    return -1;
 }
 
 FILE *fopen(const char *path, const char *mode)
@@ -202,6 +529,25 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
     (void) ptr;
     (void) stream;
     return nmemb == 0 ? 0 : size * nmemb;
+}
+
+int feof(FILE *stream)
+{
+    (void) stream;
+    return 1;
+}
+
+int fgetc(FILE *stream)
+{
+    (void) stream;
+    return -1;
+}
+
+int ungetc(int c, FILE *stream)
+{
+    (void) c;
+    (void) stream;
+    return -1;
 }
 
 int fseek(FILE *stream, long offset, int whence)
@@ -290,6 +636,47 @@ unsigned long long __udivdi3(unsigned long long n, unsigned long long d)
     return q;
 }
 
+unsigned long long __umoddi3(unsigned long long n, unsigned long long d)
+{
+    if (d == 0)
+    {
+        return 0;
+    }
+
+    return n - __udivdi3(n, d) * d;
+}
+
+long long __divdi3(long long n, long long d)
+{
+    int negative = 0;
+    unsigned long long un;
+    unsigned long long ud;
+    unsigned long long result;
+
+    if (n < 0)
+    {
+        negative = !negative;
+        un = (unsigned long long) -n;
+    }
+    else
+    {
+        un = (unsigned long long) n;
+    }
+
+    if (d < 0)
+    {
+        negative = !negative;
+        ud = (unsigned long long) -d;
+    }
+    else
+    {
+        ud = (unsigned long long) d;
+    }
+
+    result = __udivdi3(un, ud);
+    return negative ? -(long long) result : (long long) result;
+}
+
 int atoi(const char *s)
 {
     int sign = 1;
@@ -318,6 +705,42 @@ int atoi(const char *s)
     }
 
     return sign * result;
+}
+
+double atof(const char *s)
+{
+    return (double) atoi(s);
+}
+
+double fabs(double x)
+{
+    return x < 0.0 ? -x : x;
+}
+
+int abs(int x)
+{
+    return x < 0 ? -x : x;
+}
+
+void srand(unsigned int seed)
+{
+    iedoom_rand_state = seed == 0 ? 1 : seed;
+}
+
+int rand(void)
+{
+    iedoom_rand_state = iedoom_rand_state * 1103515245u + 12345u;
+    return (int) ((iedoom_rand_state >> 16) & 0x7fff);
+}
+
+long time(long *tloc)
+{
+    if (tloc != NULL)
+    {
+        *tloc = 0;
+    }
+
+    return 0;
 }
 
 void *memset(void *dest, int c, size_t n)

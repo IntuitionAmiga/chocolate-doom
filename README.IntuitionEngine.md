@@ -40,14 +40,17 @@ the linked-image path: an ELF reset section at address `0`, C entry code at
 `PROGRAM_START`, reset-time `.bss` clearing through linker-provided
 `__bss_start`/`__bss_end`, and minimal freestanding memory/string primitives.
 `src/iedoom_main.c` is the current Doom-facing C entry: it initializes
-Chocolate Doom's argument globals to a minimal `argv[0]` and calls
-`D_DoomMain()`.
+Chocolate Doom's argument globals with `argv[0]`, `-iwad`, and `doom1.wad`,
+then calls `D_DoomMain()`.
 The `src/iedoom/include/` headers provide scoped freestanding declarations
 needed to compile the first IE backend and Chocolate Doom startup objects as
 32-bit code without host libc development headers. The current compile frontier
-covers `i_timer.c`, `i_intuition.c`, `iedoom_main.c`, `m_argv.c`, `m_misc.c`,
-and `d_iwad.c`; the backend link smoke image includes those startup/backend
-objects with minimal Doom-specific stubs.
+covers the IE startup/backend/WAD objects, shared Doom support modules, and all
+`src/doom/*.c` files except `doom_icon.c`. The backend link smoke image now
+links the real Doom `d_main.c` path with IE guest stubs for host-only services
+such as textscreen UI, SDL input/joystick setup, SDL_net, and host config file
+probing. `src/iedoom_build.sh` emits a local test artifact at
+`build/iedoom.ie86`; the repository already ignores `build/`.
 
 The host-side unit test for the backend helpers can be run without SDL. It
 covers the IE MMIO ABI constants, timer retry reads, video/palette writes,
@@ -82,9 +85,21 @@ sh src/iedoom_link_test.sh
 sh src/iedoom_runtime_symbols_test.sh
 sh src/iedoom_freestanding_compile_test.sh
 sh src/iedoom_backend_link_test.sh
+sh src/iedoom_build_test.sh build/iedoom.ie86
 cc -Wall -Werror -fno-builtin src/iedoom_runtime.c src/iedoom_runtime_test.c \
   -o /tmp/iedoom_runtime_test && /tmp/iedoom_runtime_test
 cc -Wall -Werror -I/tmp/choc-ie-config -Isrc -I. \
   src/iedoom_main.c src/iedoom_main_test.c \
   -o /tmp/iedoom_main_test && /tmp/iedoom_main_test
 ```
+
+The current local loader smoke command is:
+
+```sh
+../IntuitionEngine/bin/IntuitionEngine \
+  -file-root /path/to/doom-wad-directory \
+  -x86 build/iedoom.ie86
+```
+
+The guest asks IE File I/O for `doom1.wad`; the engine file root must point at
+a directory containing that IWAD. The `.ie86` image does not embed WAD assets.

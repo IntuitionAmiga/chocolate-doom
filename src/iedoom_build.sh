@@ -1,18 +1,25 @@
 #!/bin/sh
 set -eu
 
-tmp="${TMPDIR:-/tmp}/iedoom-freestanding-compile-test"
+out="${1:-build/iedoom.ie86}"
+tmp="${TMPDIR:-/tmp}/iedoom-build"
+elf="${out%.ie86}.elf"
+libgcc=$(cc -m32 -print-libgcc-file-name)
+
 rm -rf "$tmp"
-mkdir -p "$tmp"
+mkdir -p "$tmp" "$(dirname "$out")" "$(dirname "$elf")"
 
 cflags="-m32 -ffreestanding -fno-builtin -fno-pic -fno-pie \
     -fno-stack-protector -fno-asynchronous-unwind-tables \
     -DINTUITION_ENGINE -DIEDOOM_GUEST -DDISABLE_SDL2MIXER -DDISABLE_SDL2NET \
     -I/tmp/choc-ie-config -Isrc/iedoom/include -Isrc -I."
 
+nasm -f elf32 -I ../IntuitionEngine/sdk/include/ \
+    -o "$tmp/iedoom_boot.o" src/iedoom_boot.asm
+cc $cflags -c src/iedoom_runtime.c -o "$tmp/iedoom_runtime.o"
+cc $cflags -c src/iedoom_main.c -o "$tmp/iedoom_main.o"
 cc $cflags -c src/i_timer.c -o "$tmp/i_timer.o"
 cc $cflags -c src/i_intuition.c -o "$tmp/i_intuition.o"
-cc $cflags -c src/iedoom_main.c -o "$tmp/iedoom_main.o"
 cc $cflags -c src/m_argv.c -o "$tmp/m_argv.o"
 cc $cflags -c src/m_misc.c -o "$tmp/m_misc.o"
 cc $cflags -c src/d_iwad.c -o "$tmp/d_iwad.o"
@@ -26,11 +33,6 @@ for source in \
     src/d_event.c \
     src/d_loop.c \
     src/d_mode.c \
-    src/deh_io.c \
-    src/deh_main.c \
-    src/deh_mapping.c \
-    src/deh_str.c \
-    src/deh_text.c \
     src/gusconf.c \
     src/i_sound.c \
     src/i_video.c \
@@ -57,16 +59,26 @@ for source in \
     src/v_diskicon.c \
     src/v_video.c \
     src/w_checksum.c \
-    src/w_merge.c
+    src/w_merge.c \
+    src/doom/*.c
 do
-    cc $cflags -c "$source" -o "$tmp/$(basename "$source" .c).o"
-done
-for source in src/doom/*.c; do
     case "$source" in
         */doom_icon.c) continue ;;
+        */deh_*.c) continue ;;
     esac
     cc $cflags -Isrc/doom -c "$source" \
-        -o "$tmp/doom_$(basename "$source" .c).o"
+        -o "$tmp/$(basename "$source" .c).o"
 done
+cc $cflags -c src/iedoom_link_stubs.c -o "$tmp/iedoom_link_stubs.o"
+cc $cflags -c src/iedoom_backend_stubs.c -o "$tmp/iedoom_backend_stubs.o"
 
-echo "iedoom_freestanding_compile tests passed"
+ld -m elf_i386 -nostdlib -T src/iedoom_link.ld \
+    -o "$elf" "$tmp/"*.o "$libgcc"
+
+if nm --undefined-only "$elf" | grep .; then
+    echo "iedoom image has unresolved symbols" >&2
+    exit 1
+fi
+
+objcopy -O binary "$elf" "$out"
+echo "$out"

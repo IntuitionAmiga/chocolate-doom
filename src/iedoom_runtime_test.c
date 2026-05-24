@@ -18,15 +18,26 @@ char *strchr(const char *s, int c);
 char *strrchr(const char *s, int c);
 char *strstr(const char *haystack, const char *needle);
 int atoi(const char *s);
+double atof(const char *s);
 void *malloc(size_t size);
+void *calloc(size_t nmemb, size_t size);
+void *realloc(void *ptr, size_t size);
 void free(void *ptr);
+int snprintf(char *s, size_t n, const char *fmt, ...);
 unsigned long long __udivdi3(unsigned long long n, unsigned long long d);
+unsigned long long __umoddi3(unsigned long long n, unsigned long long d);
+long long __divdi3(long long n, long long d);
 int isspace(int c);
 int isdigit(int c);
 int isalpha(int c);
 int isalnum(int c);
+int isprint(int c);
 int toupper(int c);
 int tolower(int c);
+int abs(int x);
+double fabs(double x);
+int rand(void);
+void srand(unsigned int seed);
 
 int iedoom_main(void)
 {
@@ -110,6 +121,10 @@ static void test_stdlib_primitives(void)
     assert(atoi("-12") == -12);
     assert(atoi("7tic") == 7);
     assert(atoi(" 42") == 42);
+    assert(atof("-12") == -12.0);
+    assert(abs(-12) == 12);
+    assert(abs(7) == 7);
+    assert(fabs(-1.5) == 1.5);
 
     a = malloc(16);
     b = malloc(16);
@@ -120,9 +135,31 @@ static void test_stdlib_primitives(void)
     free(a);
     free(NULL);
 
+    a = calloc(4, 4);
+    assert(a != NULL);
+    assert(((unsigned char *) a)[0] == 0);
+    assert(((unsigned char *) a)[15] == 0);
+
+    a = malloc(4);
+    assert(a != NULL);
+    ((unsigned char *) a)[0] = 0xde;
+    ((unsigned char *) a)[1] = 0xad;
+    ((unsigned char *) a)[2] = 0xbe;
+    ((unsigned char *) a)[3] = 0xef;
+    b = realloc(a, 16);
+    assert(b != NULL);
+    assert(((unsigned char *) b)[0] == 0xde);
+    assert(((unsigned char *) b)[1] == 0xad);
+    assert(((unsigned char *) b)[2] == 0xbe);
+    assert(((unsigned char *) b)[3] == 0xef);
+
     assert(__udivdi3(100, 5) == 20);
     assert(__udivdi3(10000000000ull, 1000) == 10000000ull);
     assert(__udivdi3(7, 2) == 3);
+    assert(__umoddi3(7, 2) == 1);
+    assert(__divdi3(-9, 2) == -4);
+    srand(1);
+    assert(rand() == 16838);
 }
 
 static void test_ctype_primitives(void)
@@ -139,10 +176,29 @@ static void test_ctype_primitives(void)
     assert(isalnum('a'));
     assert(isalnum('7'));
     assert(!isalnum('-'));
+    assert(isprint(' '));
+    assert(isprint('~'));
+    assert(!isprint('\n'));
     assert(toupper('a') == 'A');
     assert(toupper('A') == 'A');
     assert(tolower('Z') == 'z');
     assert(tolower('z') == 'z');
+}
+
+static void test_format_primitives(void)
+{
+    char buf[32];
+
+    assert(snprintf(buf, sizeof(buf), "ds%s", "pistol") == 8);
+    assert(strcmp(buf, "dspistol") == 0);
+    assert(snprintf(buf, sizeof(buf), "AMMNUM%d", 3) == 7);
+    assert(strcmp(buf, "AMMNUM3") == 0);
+    assert(snprintf(buf, sizeof(buf), "%s.lmp", "demo1") == 9);
+    assert(strcmp(buf, "demo1.lmp") == 0);
+    assert(snprintf(buf, sizeof(buf), "%08x", 0x2a) == 8);
+    assert(strcmp(buf, "0000002a") == 0);
+    assert(snprintf(buf, 5, "abcdef") == 6);
+    assert(strcmp(buf, "abcd") == 0);
 }
 
 int main(void)
@@ -151,6 +207,7 @@ int main(void)
     test_string_primitives();
     test_stdlib_primitives();
     test_ctype_primitives();
+    test_format_primitives();
     puts("iedoom_runtime tests passed");
     return 0;
 }

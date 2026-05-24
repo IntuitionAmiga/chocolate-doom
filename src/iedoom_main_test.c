@@ -22,10 +22,12 @@ int main(void)
 
     assert(iedoom_main() == 0);
     assert(doom_main_called == 1);
-    assert(myargc == 1);
+    assert(myargc == 3);
     assert(myargv != NULL);
     assert(myargv[0] != NULL);
-    assert(myargv[1] == NULL);
+    assert(myargv[1] != NULL);
+    assert(myargv[2] != NULL);
+    assert(myargv[3] == NULL);
 
     puts("iedoom_main tests passed");
     return 0;
