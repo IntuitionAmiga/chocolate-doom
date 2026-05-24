@@ -35,6 +35,10 @@ trampoline at address `0` to set up the stack/C runtime and jump to the port
 entry point. `src/iedoom_start.asm` provides the current trampoline smoke-test
 image: it sets `ESP = STACK_TOP`, jumps to `PROGRAM_START`, and pads the flat
 binary so byte offset `0x1000` is the entry placeholder.
+`src/iedoom_boot.asm`, `src/iedoom_link.ld`, and `src/iedoom_runtime.c` provide
+the linked-image path: an ELF reset section at address `0`, C entry code at
+`PROGRAM_START`, reset-time `.bss` clearing through linker-provided
+`__bss_start`/`__bss_end`, and minimal freestanding memory/string primitives.
 
 The host-side unit test for the backend helpers can be run without SDL. It
 covers the IE MMIO ABI constants, timer retry reads, video/palette writes,
@@ -60,4 +64,13 @@ The reset trampoline binary contract can be checked with:
 
 ```sh
 sh src/iedoom_start_test.sh
+```
+
+The linked flat-image and runtime shim contracts can be checked with:
+
+```sh
+sh src/iedoom_link_test.sh
+sh src/iedoom_runtime_symbols_test.sh
+cc -Wall -Werror -fno-builtin src/iedoom_runtime.c src/iedoom_runtime_test.c \
+  -o /tmp/iedoom_runtime_test && /tmp/iedoom_runtime_test
 ```

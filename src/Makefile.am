@@ -238,6 +238,12 @@ endif
 EXTRA_DIST =                        \
         CMakeLists.txt              \
         Doom_Screensaver.desktop.in \
+        iedoom_boot.asm             \
+        iedoom_link.ld              \
+        iedoom_link_test.sh         \
+        iedoom_runtime.c            \
+        iedoom_runtime_symbols_test.sh \
+        iedoom_runtime_test.c       \
         iedoom_start.asm            \
         iedoom_start_test.sh        \
         manifest.xml
