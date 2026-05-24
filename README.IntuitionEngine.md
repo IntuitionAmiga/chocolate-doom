@@ -39,6 +39,15 @@ binary so byte offset `0x1000` is the entry placeholder.
 the linked-image path: an ELF reset section at address `0`, C entry code at
 `PROGRAM_START`, reset-time `.bss` clearing through linker-provided
 `__bss_start`/`__bss_end`, and minimal freestanding memory/string primitives.
+`src/iedoom_main.c` is the current Doom-facing C entry: it initializes
+Chocolate Doom's argument globals to a minimal `argv[0]` and calls
+`D_DoomMain()`.
+The `src/iedoom/include/` headers provide scoped freestanding declarations
+needed to compile the first IE backend and Chocolate Doom startup objects as
+32-bit code without host libc development headers. The current compile frontier
+covers `i_timer.c`, `i_intuition.c`, `iedoom_main.c`, `m_argv.c`, `m_misc.c`,
+and `d_iwad.c`; the backend link smoke image includes those startup/backend
+objects with minimal Doom-specific stubs.
 
 The host-side unit test for the backend helpers can be run without SDL. It
 covers the IE MMIO ABI constants, timer retry reads, video/palette writes,
@@ -71,6 +80,11 @@ The linked flat-image and runtime shim contracts can be checked with:
 ```sh
 sh src/iedoom_link_test.sh
 sh src/iedoom_runtime_symbols_test.sh
+sh src/iedoom_freestanding_compile_test.sh
+sh src/iedoom_backend_link_test.sh
 cc -Wall -Werror -fno-builtin src/iedoom_runtime.c src/iedoom_runtime_test.c \
   -o /tmp/iedoom_runtime_test && /tmp/iedoom_runtime_test
+cc -Wall -Werror -I/tmp/choc-ie-config -Isrc -I. \
+  src/iedoom_main.c src/iedoom_main_test.c \
+  -o /tmp/iedoom_main_test && /tmp/iedoom_main_test
 ```

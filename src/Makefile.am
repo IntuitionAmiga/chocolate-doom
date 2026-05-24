@@ -238,9 +238,26 @@ endif
 EXTRA_DIST =                        \
         CMakeLists.txt              \
         Doom_Screensaver.desktop.in \
+        iedoom/include/SDL_stdinc.h \
+        iedoom/include/ctype.h      \
+        iedoom/include/errno.h      \
+        iedoom/include/inttypes.h   \
+        iedoom/include/limits.h     \
+        iedoom/include/stdio.h      \
+        iedoom/include/stdlib.h     \
+        iedoom/include/string.h     \
+        iedoom/include/strings.h    \
+        iedoom/include/sys/stat.h   \
+        iedoom/include/sys/types.h  \
+        iedoom_backend_link_test.sh \
+        iedoom_backend_stubs.c      \
         iedoom_boot.asm             \
+        iedoom_freestanding_compile_test.sh \
         iedoom_link.ld              \
+        iedoom_link_stubs.c         \
         iedoom_link_test.sh         \
+        iedoom_main.c               \
+        iedoom_main_test.c          \
         iedoom_runtime.c            \
         iedoom_runtime_symbols_test.sh \
         iedoom_runtime_test.c       \

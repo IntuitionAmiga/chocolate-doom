@@ -4,6 +4,7 @@ set -eu
 tmp="${TMPDIR:-/tmp}/iedoom-link-test"
 elf="$tmp/iedoom.elf"
 bin="$tmp/iedoom.ie86"
+libgcc=$(cc -m32 -print-libgcc-file-name)
 
 rm -rf "$tmp"
 mkdir -p "$tmp"
@@ -13,8 +14,15 @@ nasm -f elf32 -I ../IntuitionEngine/sdk/include/ \
 cc -m32 -ffreestanding -fno-pic -fno-pie -fno-stack-protector \
     -fno-asynchronous-unwind-tables -c src/iedoom_runtime.c \
     -o "$tmp/iedoom_runtime.o"
+cc -m32 -ffreestanding -fno-pic -fno-pie -fno-stack-protector \
+    -fno-asynchronous-unwind-tables -I/tmp/choc-ie-config -Isrc -I. \
+    -c src/iedoom_main.c -o "$tmp/iedoom_main.o"
+cc -m32 -ffreestanding -fno-pic -fno-pie -fno-stack-protector \
+    -fno-asynchronous-unwind-tables -c src/iedoom_link_stubs.c \
+    -o "$tmp/iedoom_link_stubs.o"
 ld -m elf_i386 -nostdlib -T src/iedoom_link.ld \
-    -o "$elf" "$tmp/iedoom_boot.o" "$tmp/iedoom_runtime.o"
+    -o "$elf" "$tmp/iedoom_boot.o" "$tmp/iedoom_runtime.o" \
+    "$tmp/iedoom_main.o" "$tmp/iedoom_link_stubs.o" "$libgcc"
 objcopy -O binary "$elf" "$bin"
 
 size=$(wc -c < "$bin")
@@ -54,10 +62,18 @@ if ! objdump -dr "$tmp/iedoom_boot.o" | grep -q "__bss_end"; then
     echo "reset stub does not reference __bss_end" >&2
     exit 1
 fi
+if ! nm -n "$elf" | awk '{ print $3 }' | grep -qx "iedoom_main"; then
+    echo "linked image is missing iedoom_main" >&2
+    exit 1
+fi
+if ! objdump -dr "$tmp/iedoom_runtime.o" | grep -q "iedoom_main"; then
+    echo "iedoom_entry does not call iedoom_main" >&2
+    exit 1
+fi
 
 entry_byte=$(od -An -tx1 -j4096 -N1 "$bin" | tr -d ' \n')
-if [ "$entry_byte" != "fa" ]; then
-    echo "iedoom_entry does not begin with cli: $entry_byte" >&2
+if [ "$entry_byte" != "e8" ]; then
+    echo "iedoom_entry does not begin with call: $entry_byte" >&2
     exit 1
 fi
 
