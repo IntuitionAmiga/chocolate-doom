@@ -25,7 +25,7 @@
 
 #include "w_file.h"
 
-
+#ifndef INTUITION_ENGINE
 static wad_file_class_t *wad_file_classes[] = 
 {
 #ifdef _WIN32
@@ -36,9 +36,13 @@ static wad_file_class_t *wad_file_classes[] =
 #endif
     &stdc_wad_file,
 };
+#endif
 
 wad_file_t *W_OpenFile(const char *path)
 {
+#ifdef INTUITION_ENGINE
+    return intuition_wad_file.OpenFile(path);
+#else
     wad_file_t *result;
     int i;
 
@@ -69,6 +73,7 @@ wad_file_t *W_OpenFile(const char *path)
     }
 
     return result;
+#endif
 }
 
 void W_CloseFile(wad_file_t *wad)
@@ -81,4 +86,3 @@ size_t W_Read(wad_file_t *wad, unsigned int offset,
 {
     return wad->file_class->Read(wad, offset, buffer, buffer_len);
 }
-

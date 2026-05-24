@@ -19,6 +19,8 @@ static int num_status_reads;
 static uint32_t rtc_hi_reads[8];
 static int num_rtc_hi_reads;
 static uint32_t rtc_lo_value;
+static uint32_t file_status_value;
+static uint32_t file_result_len_value;
 
 void IE_TestSetMMIO(uint32_t (*read32)(uint32_t addr),
                     void (*write32)(uint32_t addr, uint32_t value));
@@ -32,6 +34,8 @@ static void reset_io(void)
     memset(rtc_hi_reads, 0, sizeof(rtc_hi_reads));
     num_rtc_hi_reads = 0;
     rtc_lo_value = 0;
+    file_status_value = 0;
+    file_result_len_value = 0;
 }
 
 static void write32(uint32_t addr, uint32_t value)
@@ -57,6 +61,14 @@ static uint32_t read32(uint32_t addr)
     if (addr == IE_RTC_MONO_USEC_LO)
     {
         return rtc_lo_value;
+    }
+    if (addr == IE_FILE_STATUS)
+    {
+        return file_status_value;
+    }
+    if (addr == IE_FILE_RESULT_LEN)
+    {
+        return file_result_len_value;
     }
     return 0;
 }
@@ -207,6 +219,32 @@ static void test_dmx_sfx_parse_and_trigger(void)
     expect_write(5, base + IE_SFX_CTRL, IE_SFX_CTRL_TRIGGER);
 }
 
+static void test_file_read_all_register_sequence(void)
+{
+    const char name[] = "doom.wad";
+    uint8_t buffer[16];
+    uint32_t result_len = 0;
+
+    reset_io();
+    file_status_value = 0;
+    file_result_len_value = 12;
+
+    assert(IE_FileReadAll(name, buffer, sizeof(buffer), &result_len));
+    expect_write(0, IE_FILE_NAME_PTR, (uint32_t) (uintptr_t) name);
+    expect_write(1, IE_FILE_DATA_PTR, (uint32_t) (uintptr_t) buffer);
+    expect_write(2, IE_FILE_DATA_LEN, sizeof(buffer));
+    expect_write(3, IE_FILE_CTRL, IE_FILE_OP_READ);
+    assert(result_len == 12);
+
+    reset_io();
+    file_status_value = 1;
+    file_result_len_value = 7;
+    result_len = 99;
+
+    assert(!IE_FileReadAll(name, buffer, sizeof(buffer), &result_len));
+    assert(result_len == 0);
+}
+
 int main(void)
 {
     IE_TestSetMMIO(read32, write32);
@@ -215,6 +253,7 @@ int main(void)
     test_input_constants_and_scancode_translation();
     test_music_controls_and_loading_status();
     test_dmx_sfx_parse_and_trigger();
+    test_file_read_all_register_sequence();
     puts("i_intuition tests passed");
     return 0;
 }

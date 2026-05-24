@@ -50,6 +50,9 @@
 #define IE_FILE_CTRL             0x000F220Cu
 #define IE_FILE_STATUS           0x000F2210u
 #define IE_FILE_RESULT_LEN       0x000F2214u
+#define IE_FILE_OP_READ          1u
+#define IE_FILE_OP_WRITE         2u
+#define IE_FILE_OP_LIST          3u
 
 #define IE_SFX_CH_BASE           0x000F0E80u
 #define IE_SFX_CH_STRIDE         0x00000020u
@@ -88,6 +91,9 @@ uint32_t IE_PackPaletteEntry(uint8_t r, uint8_t g, uint8_t b);
 
 void IE_InputInit(void);
 int IE_TranslateScancode(uint8_t scancode, int *pressed);
+
+int IE_FileReadAll(const char *name, void *buffer, uint32_t buffer_len,
+                   uint32_t *result_len);
 
 void IE_MusicSetVolume(int volume);
 void IE_MusicStart(uint32_t data_addr, uint32_t len, int looping);

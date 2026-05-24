@@ -42,6 +42,10 @@ typedef struct
 
 extern wad_file_class_t stdc_wad_file;
 
+#ifdef INTUITION_ENGINE
+extern wad_file_class_t intuition_wad_file;
+#endif
+
 #ifdef _WIN32
 extern wad_file_class_t win32_wad_file;
 #endif

@@ -140,6 +140,43 @@ int IE_TranslateScancode(uint8_t scancode, int *pressed)
     return pc_at_scancode_to_key[make_code];
 }
 
+int IE_FileReadAll(const char *name, void *buffer, uint32_t buffer_len,
+                   uint32_t *result_len)
+{
+    uint32_t status;
+    uint32_t len;
+
+    if (result_len != NULL)
+    {
+        *result_len = 0;
+    }
+
+    if (name == NULL || buffer == NULL)
+    {
+        return 0;
+    }
+
+    IE_MMIO_Write32(IE_FILE_NAME_PTR, (uint32_t) (uintptr_t) name);
+    IE_MMIO_Write32(IE_FILE_DATA_PTR, (uint32_t) (uintptr_t) buffer);
+    IE_MMIO_Write32(IE_FILE_DATA_LEN, buffer_len);
+    IE_MMIO_Write32(IE_FILE_CTRL, IE_FILE_OP_READ);
+
+    status = IE_MMIO_Read32(IE_FILE_STATUS);
+    len = IE_MMIO_Read32(IE_FILE_RESULT_LEN);
+
+    if (status != 0 || len > buffer_len)
+    {
+        return 0;
+    }
+
+    if (result_len != NULL)
+    {
+        *result_len = len;
+    }
+
+    return 1;
+}
+
 void IE_MusicSetVolume(int volume)
 {
     if (ie_music_mode == IE_MUSIC_MODE_NONE)

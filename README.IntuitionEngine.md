@@ -24,6 +24,10 @@ Current backend coverage:
   with unsigned 8-bit PCM payload pointers, payload lengths, sample rates, and
   scaled 0..65535 volume. Parsed sound metadata is cached on Chocolate Doom's
   `sfxinfo_t::driver_data` so MMIO playback points at stable lump memory.
+- WAD files are loaded through IE File I/O MMIO when `INTUITION_ENGINE` is
+  defined. The backend reads the whole WAD into guest memory once, exposes it as
+  a mapped WAD buffer, and serves Chocolate Doom's offset reads from that cache.
+  The current maximum single WAD size is 64 MiB.
 
 The Intuition Engine x86 loader contract is load-at-0/start-at-0. A freestanding
 `.ie86` image that links main Doom code at a higher address must include a reset

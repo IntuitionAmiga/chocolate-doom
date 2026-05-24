@@ -117,6 +117,7 @@ w_checksum.c         w_checksum.h          \
 w_main.c             w_main.h              \
 w_wad.c              w_wad.h               \
 w_file.c             w_file.h              \
+w_file_intuition.c                         \
 w_file_stdc.c                              \
 w_file_posix.c                             \
 w_file_win32.c                             \
