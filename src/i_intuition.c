@@ -256,6 +256,51 @@ int IE_MusicLoadFailed(void)
     return (status & IE_MIDI_STATUS_ERROR) != 0;
 }
 
+int IE_MusicRegisterData(const void *data, int len, ie_music_data_t *out)
+{
+    if (data == NULL || len <= 0 || out == NULL)
+    {
+        return 0;
+    }
+
+    out->data_addr = (uint32_t) (uintptr_t) data;
+    out->len = (uint32_t) len;
+    return 1;
+}
+
+void IE_MusicPlayData(const ie_music_data_t *music, int looping,
+                      int *playing, int *paused)
+{
+    int load_failed;
+
+    if (playing != NULL)
+    {
+        *playing = 0;
+    }
+    if (paused != NULL)
+    {
+        *paused = 0;
+    }
+
+    if (music == NULL || music->len == 0)
+    {
+        return;
+    }
+
+    if (ie_music_mode == IE_MUSIC_MODE_NONE)
+    {
+        return;
+    }
+
+    IE_MusicStart(music->data_addr, music->len, looping);
+    load_failed = IE_MusicLoadFailed();
+
+    if (playing != NULL)
+    {
+        *playing = !load_failed;
+    }
+}
+
 int IE_ParseDMXSound(const uint8_t *data, uint32_t len,
                      uint32_t guest_addr, ie_dmx_sound_t *out)
 {
@@ -340,12 +385,6 @@ void IE_SfxTrigger(unsigned int channel, const ie_dmx_sound_t *sound,
 }
 
 #ifndef INTUITION_ENGINE_TEST
-
-typedef struct
-{
-    uint32_t data_addr;
-    uint32_t len;
-} ie_music_handle_t;
 
 typedef struct
 {
@@ -574,12 +613,7 @@ static void IE_ResumeMusicModule(void)
 
 static void *IE_RegisterSongModule(void *data, int len)
 {
-    ie_music_handle_t *handle;
-
-    if (data == NULL || len <= 0)
-    {
-        return NULL;
-    }
+    ie_music_data_t *handle;
 
     handle = malloc(sizeof(*handle));
     if (handle == NULL)
@@ -587,8 +621,12 @@ static void *IE_RegisterSongModule(void *data, int len)
         return NULL;
     }
 
-    handle->data_addr = (uint32_t) (uintptr_t) data;
-    handle->len = (uint32_t) len;
+    if (!IE_MusicRegisterData(data, len, handle))
+    {
+        free(handle);
+        return NULL;
+    }
+
     return handle;
 }
 
@@ -599,23 +637,14 @@ static void IE_UnRegisterSongModule(void *handle)
 
 static void IE_PlaySongModule(void *handle, boolean looping)
 {
-    ie_music_handle_t *music = (ie_music_handle_t *) handle;
+    ie_music_data_t *music = (ie_music_data_t *) handle;
 
     if (music == NULL)
     {
         return;
     }
 
-    if (ie_music_mode == IE_MUSIC_MODE_NONE)
-    {
-        ie_music_playing = 0;
-        ie_music_paused = 0;
-        return;
-    }
-
-    IE_MusicStart(music->data_addr, music->len, looping);
-    ie_music_playing = !IE_MusicLoadFailed();
-    ie_music_paused = 0;
+    IE_MusicPlayData(music, looping, &ie_music_playing, &ie_music_paused);
 }
 
 static void IE_StopSongModule(void)

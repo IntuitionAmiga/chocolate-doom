@@ -78,6 +78,12 @@ typedef struct
     uint32_t sample_rate;
 } ie_dmx_sound_t;
 
+typedef struct
+{
+    uint32_t data_addr;
+    uint32_t len;
+} ie_music_data_t;
+
 extern int ie_music_mode;
 
 uint32_t IE_MMIO_Read32(uint32_t addr);
@@ -101,6 +107,9 @@ void IE_MusicStop(void);
 void IE_MusicPause(void);
 void IE_MusicResume(void);
 int IE_MusicLoadFailed(void);
+int IE_MusicRegisterData(const void *data, int len, ie_music_data_t *out);
+void IE_MusicPlayData(const ie_music_data_t *music, int looping,
+                      int *playing, int *paused);
 
 int IE_ParseDMXSound(const uint8_t *data, uint32_t len,
                      uint32_t guest_addr, ie_dmx_sound_t *out);

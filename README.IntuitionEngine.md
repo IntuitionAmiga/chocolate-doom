@@ -32,7 +32,9 @@ Current backend coverage:
 The Intuition Engine x86 loader contract is load-at-0/start-at-0. A freestanding
 `.ie86` image that links main Doom code at a higher address must include a reset
 trampoline at address `0` to set up the stack/C runtime and jump to the port
-entry point.
+entry point. `src/iedoom_start.asm` provides the current trampoline smoke-test
+image: it sets `ESP = STACK_TOP`, jumps to `PROGRAM_START`, and pads the flat
+binary so byte offset `0x1000` is the entry placeholder.
 
 The host-side unit test for the backend helpers can be run without SDL. It
 covers the IE MMIO ABI constants, timer retry reads, video/palette writes,
@@ -43,4 +45,19 @@ File I/O read-all register handling:
 cc -DINTUITION_ENGINE_TEST -Isrc -I. \
   src/i_intuition.c src/i_intuition_test.c \
   -o /tmp/i_intuition_test && /tmp/i_intuition_test
+```
+
+The Intuition video backend test checks that the CLUT8 Doom framebuffer remains
+byte-identical through `I_FinishUpdate()`/`I_ReadScreen()`:
+
+```sh
+cc -DINTUITION_ENGINE -DINTUITION_ENGINE_TEST -I/tmp/choc-ie-config -Isrc -I. \
+  src/i_intuition.c src/i_video.c src/i_video_intuition_test.c \
+  -o /tmp/i_video_intuition_test && /tmp/i_video_intuition_test
+```
+
+The reset trampoline binary contract can be checked with:
+
+```sh
+sh src/iedoom_start_test.sh
 ```

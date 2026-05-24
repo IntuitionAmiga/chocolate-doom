@@ -238,6 +238,8 @@ endif
 EXTRA_DIST =                        \
         CMakeLists.txt              \
         Doom_Screensaver.desktop.in \
+        iedoom_start.asm            \
+        iedoom_start_test.sh        \
         manifest.xml
 
 metainfodir = $(prefix)/share/metainfo

@@ -194,6 +194,13 @@ static void test_input_constants_and_scancode_translation(void)
 
 static void test_music_controls_and_loading_status(void)
 {
+    uint8_t mus_lump[] = {
+        'M', 'U', 'S', 0x1a, 0, 0, 0, 0,
+    };
+    ie_music_data_t music;
+    int playing = -1;
+    int paused = -1;
+
     reset_io();
     ie_music_mode = IE_MUSIC_MODE_ORIGINAL_MUS;
     IE_MusicStart(0x2000, 1234, true);
@@ -238,6 +245,31 @@ static void test_music_controls_and_loading_status(void)
     assert(num_status_reads == 2);
 
     reset_io();
+    assert(IE_MusicRegisterData(mus_lump, sizeof(mus_lump), &music));
+    assert(music.data_addr == (uint32_t) (uintptr_t) mus_lump);
+    assert(music.len == sizeof(mus_lump));
+    status_reads[0] = 0;
+    IE_MusicPlayData(&music, true, &playing, &paused);
+    expect_write(0, IE_MIDI_PLAY_PTR, (uint32_t) (uintptr_t) mus_lump);
+    expect_write(1, IE_MIDI_PLAY_LEN, sizeof(mus_lump));
+    expect_write(2, IE_MIDI_PLAY_CTRL, IE_MIDI_CTRL_START | IE_MIDI_CTRL_LOOP);
+    assert(playing == 1);
+    assert(paused == 0);
+
+    reset_io();
+    status_reads[0] = IE_MIDI_STATUS_ERROR;
+    playing = 1;
+    paused = 1;
+    IE_MusicPlayData(&music, false, &playing, &paused);
+    assert(playing == 0);
+    assert(paused == 0);
+
+    reset_io();
+    assert(!IE_MusicRegisterData(NULL, sizeof(mus_lump), &music));
+    assert(!IE_MusicRegisterData(mus_lump, 0, &music));
+    assert(!IE_MusicRegisterData(mus_lump, sizeof(mus_lump), NULL));
+
+    reset_io();
     ie_music_mode = IE_MUSIC_MODE_NONE;
     IE_MusicStart(0x2000, 1234, true);
     IE_MusicStop();
@@ -245,8 +277,11 @@ static void test_music_controls_and_loading_status(void)
     IE_MusicResume();
     IE_MusicSetVolume(127);
     assert(!IE_MusicLoadFailed());
+    IE_MusicPlayData(&music, true, &playing, &paused);
     assert(num_writes == 0);
     assert(num_status_reads == 0);
+    assert(playing == 0);
+    assert(paused == 0);
     ie_music_mode = IE_MUSIC_MODE_ORIGINAL_MUS;
 }
 
