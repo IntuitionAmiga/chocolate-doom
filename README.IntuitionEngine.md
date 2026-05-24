@@ -34,7 +34,10 @@ The Intuition Engine x86 loader contract is load-at-0/start-at-0. A freestanding
 trampoline at address `0` to set up the stack/C runtime and jump to the port
 entry point.
 
-The host-side unit test for the backend helpers can be run without SDL:
+The host-side unit test for the backend helpers can be run without SDL. It
+covers the IE MMIO ABI constants, timer retry reads, video/palette writes,
+input setup, music controls and load status, DMX SFX parsing/triggering, and
+File I/O read-all register handling:
 
 ```sh
 cc -DINTUITION_ENGINE_TEST -Isrc -I. \

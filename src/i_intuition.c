@@ -305,6 +305,20 @@ uint32_t IE_SfxChannelAddr(unsigned int channel, uint32_t offset)
     return IE_SFX_CH_BASE + channel * IE_SFX_CH_STRIDE + offset;
 }
 
+unsigned int IE_AllocateSfxChannel(unsigned int *next_channel)
+{
+    unsigned int channel;
+
+    if (next_channel == NULL)
+    {
+        return 0;
+    }
+
+    channel = *next_channel % IE_SFX_CHANNELS;
+    ++*next_channel;
+    return channel;
+}
+
 void IE_SfxTrigger(unsigned int channel, const ie_dmx_sound_t *sound,
                    int doom_volume, int max_doom_volume)
 {
@@ -418,7 +432,7 @@ static int IE_StartSoundModule(sfxinfo_t *sfxinfo, int channel,
         return 0;
     }
 
-    ie_channel = ie_next_sfx_channel++ % IE_SFX_CHANNELS;
+    ie_channel = IE_AllocateSfxChannel(&ie_next_sfx_channel);
     IE_SfxTrigger(ie_channel, &cached->sound, vol, 127);
     return (int) ie_channel;
 }

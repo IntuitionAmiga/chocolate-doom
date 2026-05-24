@@ -106,6 +106,7 @@ int IE_ParseDMXSound(const uint8_t *data, uint32_t len,
                      uint32_t guest_addr, ie_dmx_sound_t *out);
 uint32_t IE_ScaleSfxVolume(int doom_volume, int max_doom_volume);
 uint32_t IE_SfxChannelAddr(unsigned int channel, uint32_t offset);
+unsigned int IE_AllocateSfxChannel(unsigned int *next_channel);
 void IE_SfxTrigger(unsigned int channel, const ie_dmx_sound_t *sound,
                    int doom_volume, int max_doom_volume);
 

@@ -125,19 +125,58 @@ static void test_input_constants_and_scancode_translation(void)
     assert(IE_STACK_TOP == 0xFF0000u);
     assert(IE_TERM_KEY_IN == 0xF0728u);
     assert(IE_TERM_KEY_STATUS == 0xF072Cu);
+    assert(IE_MOUSE_X == 0xF0730u);
+    assert(IE_MOUSE_Y == 0xF0734u);
+    assert(IE_MOUSE_BUTTONS == 0xF0738u);
+    assert(IE_MOUSE_STATUS == 0xF073Cu);
     assert(IE_SCAN_CODE == 0xF0740u);
     assert(IE_SCAN_STATUS == 0xF0744u);
     assert(IE_SCAN_MODIFIERS == 0xF0748u);
     assert(IE_MOUSE_CTRL == 0xF074Cu);
     assert(IE_MOUSE_DX == 0xF0754u);
     assert(IE_MOUSE_DY == 0xF0758u);
+    assert(IE_RTC_MONO_USEC_LO == 0xF075Cu);
+    assert(IE_RTC_MONO_USEC_HI == 0xF0760u);
+    assert(IE_VIDEO_CTRL == 0xF0000u);
+    assert(IE_VIDEO_MODE == 0xF0004u);
+    assert(IE_VIDEO_COLOR_MODE == 0xF0080u);
+    assert(IE_VIDEO_FB_BASE == 0xF0084u);
+    assert(IE_VIDEO_PAL_TABLE == 0xF0088u);
+    assert(IE_MODE_320X200 == 4u);
+    assert(IE_VIDEO_CLUT8 == 1u);
+    assert(IE_MIDI_PLAY_PTR == 0xF0BA0u);
+    assert(IE_MIDI_PLAY_LEN == 0xF0BA4u);
+    assert(IE_MIDI_PLAY_CTRL == 0xF0BA8u);
+    assert(IE_MIDI_PLAY_STATUS == 0xF0BACu);
+    assert(IE_MIDI_VOLUME == 0xF0BB4u);
+    assert(IE_MIDI_CTRL_START == 1u);
+    assert(IE_MIDI_CTRL_STOP == 2u);
+    assert(IE_MIDI_CTRL_LOOP == 4u);
+    assert(IE_MIDI_CTRL_PAUSE == 8u);
+    assert(IE_MIDI_STATUS_ERROR == 2u);
+    assert(IE_MIDI_STATUS_LOADING == 8u);
     assert(IE_FILE_NAME_PTR == 0xF2200u);
     assert(IE_FILE_DATA_PTR == 0xF2204u);
     assert(IE_FILE_DATA_LEN == 0xF2208u);
     assert(IE_FILE_CTRL == 0xF220Cu);
     assert(IE_FILE_STATUS == 0xF2210u);
     assert(IE_FILE_RESULT_LEN == 0xF2214u);
+    assert(IE_FILE_OP_READ == 1u);
+    assert(IE_FILE_OP_WRITE == 2u);
+    assert(IE_FILE_OP_LIST == 3u);
     assert(IE_MEDIA_TYPE_MIDI == 8u);
+    assert(IE_SFX_CH_BASE == 0xF0E80u);
+    assert(IE_SFX_CH_STRIDE == 0x20u);
+    assert(IE_SFX_CHANNELS == 4u);
+    assert(IE_SFX_PTR == 0u);
+    assert(IE_SFX_LEN == 4u);
+    assert(IE_SFX_FREQ == 0x10u);
+    assert(IE_SFX_VOL == 0x14u);
+    assert(IE_SFX_FORMAT == 0x18u);
+    assert(IE_SFX_CTRL == 0x1Cu);
+    assert(IE_SFX_FORMAT_SIGNED8 == 0u);
+    assert(IE_SFX_FORMAT_UNSIGNED8 == 1u);
+    assert(IE_SFX_CTRL_TRIGGER == 1u);
 
     reset_io();
     IE_InputInit();
@@ -173,9 +212,29 @@ static void test_music_controls_and_loading_status(void)
     expect_write(3, IE_MIDI_VOLUME, 255);
 
     reset_io();
+    IE_MusicStart(0x2000, 1234, false);
+    expect_write(0, IE_MIDI_PLAY_PTR, 0x2000);
+    expect_write(1, IE_MIDI_PLAY_LEN, 1234);
+    expect_write(2, IE_MIDI_PLAY_CTRL, IE_MIDI_CTRL_START);
+
+    reset_io();
+    IE_MusicSetVolume(-10);
+    IE_MusicSetVolume(64);
+    IE_MusicSetVolume(200);
+    expect_write(0, IE_MIDI_VOLUME, 0);
+    expect_write(1, IE_MIDI_VOLUME, (uint32_t) ((64 * 255) / 127));
+    expect_write(2, IE_MIDI_VOLUME, 255);
+
+    reset_io();
     status_reads[0] = IE_MIDI_STATUS_LOADING;
     status_reads[1] = IE_MIDI_STATUS_ERROR;
     assert(IE_MusicLoadFailed());
+    assert(num_status_reads == 2);
+
+    reset_io();
+    status_reads[0] = IE_MIDI_STATUS_LOADING;
+    status_reads[1] = 0;
+    assert(!IE_MusicLoadFailed());
     assert(num_status_reads == 2);
 
     reset_io();
@@ -185,7 +244,9 @@ static void test_music_controls_and_loading_status(void)
     IE_MusicPause();
     IE_MusicResume();
     IE_MusicSetVolume(127);
+    assert(!IE_MusicLoadFailed());
     assert(num_writes == 0);
+    assert(num_status_reads == 0);
     ie_music_mode = IE_MUSIC_MODE_ORIGINAL_MUS;
 }
 
@@ -200,6 +261,7 @@ static void test_dmx_sfx_parse_and_trigger(void)
     };
     ie_dmx_sound_t sound;
     uint32_t base;
+    unsigned int next_channel;
 
     assert(IE_ParseDMXSound(lump, sizeof(lump), 0x3000, &sound));
     assert(sound.samples == lump + 8);
@@ -207,6 +269,29 @@ static void test_dmx_sfx_parse_and_trigger(void)
     assert(sound.sample_len == 8);
     assert(sound.sample_rate == 11025);
     assert(IE_ScaleSfxVolume(127, 127) == 65535);
+    assert(IE_ScaleSfxVolume(0, 127) == 0);
+    assert(IE_ScaleSfxVolume(12, 0) == 0);
+    assert(IE_ScaleSfxVolume(128, 127) == 65535);
+    assert(IE_SfxChannelAddr(3, IE_SFX_CTRL)
+        == IE_SFX_CH_BASE + 3 * IE_SFX_CH_STRIDE + IE_SFX_CTRL);
+    next_channel = 0;
+    assert(IE_AllocateSfxChannel(&next_channel) == 0);
+    assert(IE_AllocateSfxChannel(&next_channel) == 1);
+    assert(IE_AllocateSfxChannel(&next_channel) == 2);
+    assert(IE_AllocateSfxChannel(&next_channel) == 3);
+    assert(IE_AllocateSfxChannel(&next_channel) == 0);
+    assert(next_channel == IE_SFX_CHANNELS + 1);
+    assert(IE_AllocateSfxChannel(NULL) == 0);
+
+    assert(!IE_ParseDMXSound(NULL, sizeof(lump), 0x3000, &sound));
+    assert(!IE_ParseDMXSound(lump, 7, 0x3000, &sound));
+    assert(!IE_ParseDMXSound(lump, sizeof(lump), 0x3000, NULL));
+    lump[0] = 0;
+    assert(!IE_ParseDMXSound(lump, sizeof(lump), 0x3000, &sound));
+    lump[0] = 0x03;
+    lump[4] = 9;
+    assert(!IE_ParseDMXSound(lump, sizeof(lump), 0x3000, &sound));
+    lump[4] = 8;
 
     reset_io();
     IE_SfxTrigger(2, &sound, 64, 127);
@@ -217,6 +302,11 @@ static void test_dmx_sfx_parse_and_trigger(void)
     expect_write(3, base + IE_SFX_VOL, (uint32_t) ((64ull * 65535u) / 127u));
     expect_write(4, base + IE_SFX_FORMAT, IE_SFX_FORMAT_UNSIGNED8);
     expect_write(5, base + IE_SFX_CTRL, IE_SFX_CTRL_TRIGGER);
+
+    reset_io();
+    IE_SfxTrigger(IE_SFX_CHANNELS, &sound, 64, 127);
+    IE_SfxTrigger(0, NULL, 64, 127);
+    assert(num_writes == 0);
 }
 
 static void test_file_read_all_register_sequence(void)
@@ -243,6 +333,19 @@ static void test_file_read_all_register_sequence(void)
 
     assert(!IE_FileReadAll(name, buffer, sizeof(buffer), &result_len));
     assert(result_len == 0);
+
+    reset_io();
+    file_status_value = 0;
+    file_result_len_value = sizeof(buffer) + 1;
+    result_len = 99;
+
+    assert(!IE_FileReadAll(name, buffer, sizeof(buffer), &result_len));
+    assert(result_len == 0);
+
+    reset_io();
+    assert(!IE_FileReadAll(NULL, buffer, sizeof(buffer), &result_len));
+    assert(!IE_FileReadAll(name, NULL, sizeof(buffer), &result_len));
+    assert(num_writes == 0);
 }
 
 int main(void)
