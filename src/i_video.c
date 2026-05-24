@@ -17,6 +17,119 @@
 //
 
 
+#ifdef INTUITION_ENGINE
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "doomtype.h"
+#include "d_event.h"
+#include "i_intuition.h"
+#include "i_video.h"
+#include "m_config.h"
+
+char *video_driver = "";
+char *window_position = "center";
+boolean screenvisible = true;
+boolean screensaver_mode = false;
+int usemouse = 1;
+int usegamma = 0;
+int fullscreen = true;
+int aspect_ratio_correct = true;
+int integer_scaling = false;
+int smooth_pixel_scaling = false;
+int vga_porch_flash = false;
+int force_software_renderer = false;
+int png_screenshots = 0;
+int screen_width = SCREENWIDTH;
+int screen_height = SCREENHEIGHT;
+unsigned int joywait = 0;
+pixel_t *I_VideoBuffer = NULL;
+
+static pixel_t ie_framebuffer[SCREENWIDTH * SCREENHEIGHT];
+static int ie_last_mouse_buttons;
+
+void I_InitGraphics(void)
+{
+    I_VideoBuffer = ie_framebuffer;
+    memset(I_VideoBuffer, 0, sizeof(ie_framebuffer));
+    IE_InputInit();
+    IE_VideoInit((uint32_t) (uintptr_t) I_VideoBuffer);
+}
+
+void I_GraphicsCheckCommandLine(void) {}
+void I_ShutdownGraphics(void) {}
+void I_SetPalette(byte *palette) { IE_VideoSetPalette(palette); }
+int I_GetPaletteIndex(int r, int g, int b) { (void) g; (void) b; return r; }
+void I_UpdateNoBlit(void) {}
+void I_FinishUpdate(void) {}
+void I_ReadScreen(pixel_t *scr)
+{
+    memcpy(scr, I_VideoBuffer, SCREENWIDTH * SCREENHEIGHT * sizeof(*scr));
+}
+void I_BeginRead(void) {}
+void I_SetWindowTitle(const char *title) { (void) title; }
+void I_CheckIsScreensaver(void) { screensaver_mode = false; }
+void I_SetGrabMouseCallback(grabmouse_callback_t func) { (void) func; }
+void I_DisplayFPSDots(boolean dots_on) { (void) dots_on; }
+void I_BindVideoVariables(void) { M_BindStringVariable("video_driver", &video_driver); }
+void I_InitWindowTitle(void) {}
+void I_RegisterWindowIcon(const unsigned int *icon, int width, int height)
+{
+    (void) icon; (void) width; (void) height;
+}
+void I_InitWindowIcon(void) {}
+void I_StartFrame(void) {}
+void I_StartTic(void)
+{
+    while ((IE_MMIO_Read32(IE_SCAN_STATUS) & 1) != 0)
+    {
+        uint8_t scancode = (uint8_t) IE_MMIO_Read32(IE_SCAN_CODE);
+        int pressed;
+        int key = IE_TranslateScancode(scancode, &pressed);
+
+        if (key != 0)
+        {
+            event_t ev;
+
+            memset(&ev, 0, sizeof(ev));
+            ev.type = pressed ? ev_keydown : ev_keyup;
+            ev.data1 = key;
+            ev.data2 = key;
+            ev.data3 = key;
+            D_PostEvent(&ev);
+        }
+    }
+
+    if ((IE_MMIO_Read32(IE_MOUSE_STATUS) & 1) != 0)
+    {
+        event_t ev;
+        int dx = (int32_t) IE_MMIO_Read32(IE_MOUSE_DX);
+        int dy = (int32_t) IE_MMIO_Read32(IE_MOUSE_DY);
+        int buttons = (int) IE_MMIO_Read32(IE_MOUSE_BUTTONS);
+
+        if (dx != 0 || dy != 0 || buttons != ie_last_mouse_buttons)
+        {
+            memset(&ev, 0, sizeof(ev));
+            ev.type = ev_mouse;
+            ev.data1 = buttons;
+            ev.data2 = dx;
+            ev.data3 = -dy;
+            D_PostEvent(&ev);
+        }
+
+        ie_last_mouse_buttons = buttons;
+    }
+}
+void I_EnableLoadingDisk(int xoffs, int yoffs) { (void) xoffs; (void) yoffs; }
+void I_GetWindowPosition(int *x, int *y, int w, int h)
+{
+    (void) w; (void) h; *x = 0; *y = 0;
+}
+
+#else
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -1535,3 +1648,5 @@ void I_BindVideoVariables(void)
     M_BindIntVariable("usegamma",                  &usegamma);
     M_BindIntVariable("png_screenshots",           &png_screenshots);
 }
+
+#endif

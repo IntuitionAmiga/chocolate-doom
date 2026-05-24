@@ -71,6 +71,7 @@ i_cdmus.c            i_cdmus.h             \
 i_endoom.c           i_endoom.h            \
 i_flmusic.c                                \
 i_glob.c             i_glob.h              \
+i_intuition.c        i_intuition.h         \
 i_input.c            i_input.h             \
 i_joystick.c         i_joystick.h          \
                      i_swap.h              \
@@ -296,4 +297,3 @@ MUS2MID_SRC_FILES = mus2mid.c memio.c z_native.c i_system.c m_argv.c m_misc.c
 mus2mid : $(MUS2MID_SRC_FILES)
 	$(CC) -DSTANDALONE -I$(top_builddir) $(CFLAGS) @LDFLAGS@ \
               $(MUS2MID_SRC_FILES) -o $@
-

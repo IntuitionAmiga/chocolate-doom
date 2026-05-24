@@ -16,10 +16,46 @@
 //      Timer functions.
 //
 
+#ifndef INTUITION_ENGINE
 #include "SDL.h"
+#endif
 
 #include "i_timer.h"
 #include "doomtype.h"
+
+#ifdef INTUITION_ENGINE
+
+#include "i_intuition.h"
+
+int I_GetTime(void)
+{
+    return IE_TimeUsecToTics(IE_ReadMonotonicUsec());
+}
+
+int I_GetTimeMS(void)
+{
+    return (int) (IE_ReadMonotonicUsec() / 1000u);
+}
+
+void I_Sleep(int ms)
+{
+    uint64_t end = IE_ReadMonotonicUsec() + (uint64_t) ms * 1000u;
+
+    while (IE_ReadMonotonicUsec() < end)
+    {
+    }
+}
+
+void I_WaitVBL(int count)
+{
+    I_Sleep((count * 1000) / 70);
+}
+
+void I_InitTimer(void)
+{
+}
+
+#else
 
 //
 // I_GetTime
@@ -80,3 +116,4 @@ void I_InitTimer(void)
     SDL_Init(SDL_INIT_TIMER);
 }
 
+#endif

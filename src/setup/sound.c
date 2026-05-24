@@ -76,6 +76,7 @@ static int sfxVolume = 8;
 static int musicVolume = 8;
 static int voiceVolume = 15;
 static int show_talk = 0;
+static int ie_music_mode = 0;
 int use_libsamplerate = 0;
 float libsamplerate_scale = 0.65;
 
@@ -312,6 +313,11 @@ void ConfigSound(TXT_UNCAST_ARG(widget), void *user_data)
                                     sf_extension),
                 NULL)),
 #endif
+#ifdef INTUITION_ENGINE
+        TXT_NewSeparator("Intuition Engine"),
+        TXT_NewRadioButton("Original MUS", &ie_music_mode, 0),
+        TXT_NewRadioButton("None", &ie_music_mode, 1),
+#endif
         NULL);
 }
 
@@ -323,6 +329,9 @@ void BindSoundVariables(void)
     M_BindIntVariable("snd_samplerate",           &snd_samplerate);
     M_BindIntVariable("sfx_volume",               &sfxVolume);
     M_BindIntVariable("music_volume",             &musicVolume);
+#ifdef INTUITION_ENGINE
+    M_BindIntVariable("ie_music_mode",            &ie_music_mode);
+#endif
 
     M_BindIntVariable("use_libsamplerate",        &use_libsamplerate);
     M_BindFloatVariable("libsamplerate_scale",    &libsamplerate_scale);
@@ -407,4 +416,3 @@ void BindSoundVariables(void)
             break;
     }
 }
-

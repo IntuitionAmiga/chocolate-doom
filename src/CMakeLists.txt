@@ -74,6 +74,7 @@ set(GAME_SOURCE_FILES
     i_endoom.c          i_endoom.h
     i_flmusic.c
     i_glob.c            i_glob.h
+    i_intuition.c       i_intuition.h
     i_input.c           i_input.h
     i_joystick.c        i_joystick.h
                         i_swap.h

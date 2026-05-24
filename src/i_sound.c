@@ -22,6 +22,7 @@
 #include "doomtype.h"
 
 #include "gusconf.h"
+#include "i_intuition.h"
 #include "i_sound.h"
 #include "i_video.h"
 #include "m_argv.h"
@@ -85,10 +86,14 @@ static int snd_mport = 0;
 
 static const sound_module_t *sound_modules[] =
 {
+#ifdef INTUITION_ENGINE
+    &sound_ie_module,
+#else
 #ifndef DISABLE_SDL2MIXER
     &sound_sdl_module,
 #endif // DISABLE_SDL2MIXER
     &sound_pcsound_module,
+#endif
     NULL,
 };
 
@@ -96,6 +101,9 @@ static const sound_module_t *sound_modules[] =
 
 static const music_module_t *music_modules[] =
 {
+#ifdef INTUITION_ENGINE
+    &music_ie_module,
+#else
 #ifdef _WIN32
     &music_win_module,
 #endif
@@ -106,6 +114,7 @@ static const music_module_t *music_modules[] =
     &music_sdl_module,
 #endif // DISABLE_SDL2MIXER
     &music_opl_module,
+#endif
     NULL,
 };
 
@@ -506,6 +515,10 @@ void I_BindSoundVariables(void)
     M_BindIntVariable("opl_io_port",             &opl_io_port);
     M_BindIntVariable("snd_pitchshift",          &snd_pitchshift);
 
+#ifdef INTUITION_ENGINE
+    M_BindIntVariable("ie_music_mode",           &ie_music_mode);
+#endif
+
     M_BindStringVariable("music_pack_path",      &music_pack_path);
     M_BindStringVariable("timidity_cfg_path",    &timidity_cfg_path);
     M_BindStringVariable("gus_patch_path",       &gus_patch_path);
@@ -537,4 +550,3 @@ void I_BindSoundVariables(void)
     M_BindIntVariable("use_libsamplerate",       &use_libsamplerate);
     M_BindFloatVariable("libsamplerate_scale",   &libsamplerate_scale);
 }
-
