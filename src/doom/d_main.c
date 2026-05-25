@@ -476,6 +476,11 @@ void D_DoomLoop (void)
     I_InitGraphics();
     EnableLoadingDisk();
 
+    if (ticdup < 1)
+    {
+        ticdup = 1;
+    }
+
     TryRunTics();
 
     V_RestoreBuffer();
@@ -1999,4 +2004,3 @@ void D_DoomMain (void)
 
     D_DoomLoop ();  // never returns
 }
-
