@@ -56,6 +56,7 @@ void I_InitGraphics(void)
     memset(I_VideoBuffer, 0, sizeof(ie_framebuffer));
     IE_InputInit();
     IE_VideoInit((uint32_t) (uintptr_t) I_VideoBuffer);
+    I_VideoBuffer = ie_framebuffer;
 }
 
 void I_GraphicsCheckCommandLine(void) {}

@@ -258,6 +258,13 @@ void D_CheckNetGame (void)
     D_StartNetGame(&settings, NULL);
     LoadGameSettings(&settings);
 
+#ifdef INTUITION_ENGINE
+    if (settings.num_players > 0 && consoleplayer >= 0 && consoleplayer < MAXPLAYERS)
+    {
+        playeringame[consoleplayer] = true;
+    }
+#endif
+
     DEH_printf("startskill %i  deathmatch: %i  startmap: %i  startepisode: %i\n",
                startskill, deathmatch, startmap, startepisode);
 
@@ -284,4 +291,3 @@ void D_CheckNetGame (void)
         }
     }
 }
-

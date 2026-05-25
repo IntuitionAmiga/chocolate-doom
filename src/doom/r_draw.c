@@ -904,6 +904,16 @@ R_VideoErase
 ( unsigned	ofs,
   int		count ) 
 { 
+    if (ofs >= SCREENWIDTH * SCREENHEIGHT || count <= 0)
+    {
+        return;
+    }
+
+    if (count > SCREENWIDTH * SCREENHEIGHT - ofs)
+    {
+        count = SCREENWIDTH * SCREENHEIGHT - ofs;
+    }
+
   // LFB copy.
   // This might not be a good idea if memcpy
   //  is not optiomal, e.g. byte by byte on
