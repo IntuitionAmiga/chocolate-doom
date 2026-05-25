@@ -143,6 +143,7 @@ static void test_stdlib_primitives(void)
 {
     void *a;
     void *b;
+    void *c;
 
     assert(atoi("0") == 0);
     assert(atoi("35") == 35);
@@ -153,6 +154,15 @@ static void test_stdlib_primitives(void)
     assert(abs(-12) == 12);
     assert(abs(7) == 7);
     assert(fabs(-1.5) == 1.5);
+
+    a = malloc(4);
+    assert(a != NULL);
+    b = realloc(a, 16);
+    assert(b != NULL);
+    c = malloc(4);
+    assert(c == a);
+    free(b);
+    free(c);
 
     a = malloc(16);
     b = malloc(16);

@@ -287,6 +287,7 @@ void *realloc(void *ptr, size_t size)
     if (result != NULL)
     {
         memcpy(result, ptr, copy_size);
+        free(ptr);
     }
 
     return result;
