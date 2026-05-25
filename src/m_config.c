@@ -874,6 +874,14 @@ static default_t extra_defaults_list[] =
 
     CONFIG_VARIABLE_INT(snd_pitchshift),
 
+#ifdef INTUITION_ENGINE
+    //!
+    // Intuition Engine music backend mode.
+    //
+
+    CONFIG_VARIABLE_INT(ie_music_mode),
+#endif
+
     //!
     // External command to invoke to perform MIDI playback. If set to
     // the empty string, SDL_mixer's internal MIDI playback is used.

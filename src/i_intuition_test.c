@@ -383,6 +383,45 @@ static void test_file_read_all_register_sequence(void)
     assert(num_writes == 0);
 }
 
+static void test_file_list_register_sequence(void)
+{
+    const char name[] = ".";
+    uint8_t buffer[64];
+    uint32_t result_len = 0;
+
+    reset_io();
+    file_status_value = 0;
+    file_result_len_value = 23;
+
+    assert(IE_FileList(name, buffer, sizeof(buffer), &result_len));
+    expect_write(0, IE_FILE_NAME_PTR, (uint32_t) (uintptr_t) name);
+    expect_write(1, IE_FILE_DATA_PTR, (uint32_t) (uintptr_t) buffer);
+    expect_write(2, IE_FILE_DATA_LEN, sizeof(buffer));
+    expect_write(3, IE_FILE_CTRL, IE_FILE_OP_LIST);
+    assert(result_len == 23);
+
+    reset_io();
+    file_status_value = 1;
+    file_result_len_value = 7;
+    result_len = 99;
+
+    assert(!IE_FileList(name, buffer, sizeof(buffer), &result_len));
+    assert(result_len == 0);
+
+    reset_io();
+    file_status_value = 0;
+    file_result_len_value = sizeof(buffer) + 1;
+    result_len = 99;
+
+    assert(!IE_FileList(name, buffer, sizeof(buffer), &result_len));
+    assert(result_len == 0);
+
+    reset_io();
+    assert(!IE_FileList(NULL, buffer, sizeof(buffer), &result_len));
+    assert(!IE_FileList(name, NULL, sizeof(buffer), &result_len));
+    assert(num_writes == 0);
+}
+
 int main(void)
 {
     IE_TestSetMMIO(read32, write32);
@@ -392,6 +431,7 @@ int main(void)
     test_music_controls_and_loading_status();
     test_dmx_sfx_parse_and_trigger();
     test_file_read_all_register_sequence();
+    test_file_list_register_sequence();
     puts("i_intuition tests passed");
     return 0;
 }

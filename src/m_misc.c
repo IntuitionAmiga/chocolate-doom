@@ -36,6 +36,9 @@
 #include "doomtype.h"
 
 #include "i_system.h"
+#ifdef INTUITION_ENGINE
+#include "i_intuition.h"
+#endif
 #include "m_misc.h"
 #include "z_zone.h"
 
@@ -325,6 +328,9 @@ void M_MakeDirectory(const char *path)
 
 boolean M_FileExists(const char *filename)
 {
+#ifdef INTUITION_ENGINE
+    return IE_FileExists(filename);
+#else
     FILE *fstream;
 
     fstream = M_fopen(filename, "r");
@@ -341,6 +347,7 @@ boolean M_FileExists(const char *filename)
 
         return errno == EISDIR;
     }
+#endif
 }
 
 // Check if a file exists by probing for common case variation of its filename.

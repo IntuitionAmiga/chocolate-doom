@@ -3,6 +3,8 @@ OUTPUT_ARCH(i386)
 ENTRY(_start)
 
 PROGRAM_START = 0x1000;
+MMIO_START = 0x000F0000;
+MMIO_END = 0x00100000;
 
 PHDRS
 {
@@ -32,6 +34,7 @@ SECTIONS
         *(.data .data.*)
     } :data
 
+    . = MAX(., MMIO_END);
     .bss (NOLOAD) : {
         __bss_start = .;
         *(COMMON)

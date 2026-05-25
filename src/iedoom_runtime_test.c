@@ -2,6 +2,15 @@
 #include <stddef.h>
 #include <stdio.h>
 
+#undef assert
+#define assert(expr) \
+    do { \
+        if (!(expr)) { \
+            fprintf(stderr, "assertion failed: %s\n", #expr); \
+            abort(); \
+        } \
+    } while (0)
+
 void *memset(void *dest, int c, size_t n);
 void *memcpy(void *dest, const void *src, size_t n);
 void *memmove(void *dest, const void *src, size_t n);
@@ -38,6 +47,25 @@ int abs(int x);
 double fabs(double x);
 int rand(void);
 void srand(unsigned int seed);
+void abort(void);
+int IE_FileReadAll(const char *name, void *buffer, unsigned int buffer_len,
+                   unsigned int *result_len);
+
+static unsigned int file_read_all_calls;
+
+int IE_FileReadAll(const char *name, void *buffer, unsigned int buffer_len,
+                   unsigned int *result_len)
+{
+    (void) name;
+    (void) buffer;
+    (void) buffer_len;
+    ++file_read_all_calls;
+    if (result_len != NULL)
+    {
+        *result_len = 0;
+    }
+    return 0;
+}
 
 int iedoom_main(void)
 {
@@ -135,6 +163,25 @@ static void test_stdlib_primitives(void)
     free(a);
     free(NULL);
 
+    a = malloc(24);
+    assert(a != NULL);
+    free(a);
+    b = malloc(24);
+    assert(b == a);
+
+    a = malloc(12u * 1024u * 1024u);
+    assert(a != NULL);
+    free(a);
+    b = malloc(12u * 1024u * 1024u);
+    assert(b == a);
+
+    a = malloc(40u * 1024u * 1024u);
+    assert(a != NULL);
+    b = malloc(64u * 1024u * 1024u);
+    assert(b != NULL);
+    free(a);
+    free(b);
+
     a = calloc(4, 4);
     assert(a != NULL);
     assert(((unsigned char *) a)[0] == 0);
@@ -197,8 +244,20 @@ static void test_format_primitives(void)
     assert(strcmp(buf, "demo1.lmp") == 0);
     assert(snprintf(buf, sizeof(buf), "%08x", 0x2a) == 8);
     assert(strcmp(buf, "0000002a") == 0);
+    assert(snprintf(buf, sizeof(buf), "STCFN%.3d", 33) == 8);
+    assert(strcmp(buf, "STCFN033") == 0);
     assert(snprintf(buf, 5, "abcdef") == 6);
     assert(strcmp(buf, "abcd") == 0);
+}
+
+static void test_file_primitives(void)
+{
+    file_read_all_calls = 0;
+    assert(fopen("default.cfg", "wb") == NULL);
+    assert(fopen("savegame.dsg", "w") == NULL);
+    assert(fopen("missing.cfg", "rb") == NULL);
+    assert(fopen("missing-extra.cfg", "rb") == NULL);
+    assert(file_read_all_calls == 2);
 }
 
 int main(void)
@@ -208,6 +267,7 @@ int main(void)
     test_stdlib_primitives();
     test_ctype_primitives();
     test_format_primitives();
+    test_file_primitives();
     puts("iedoom_runtime tests passed");
     return 0;
 }

@@ -33,4 +33,15 @@ if [ -z "$bss_end" ] || [ "$((bss_end))" -ge "$((0x00ff0000))" ]; then
     exit 1
 fi
 
+bss_start=$(nm "$elf" | awk '$3 == "__bss_start" { print "0x" $1 }')
+if [ -z "$bss_start" ] || { [ "$((bss_start))" -lt "$((0x00100000))" ] && [ "$((bss_end))" -gt "$((0x000f0000))" ]; }; then
+    echo "iedoom .bss places guest globals in the fixed IE MMIO aperture" >&2
+    exit 1
+fi
+
+if objdump -d "$elf" | grep -Eiq '\<xmm[0-9]+\>|movdqu|movaps|movups'; then
+    echo "iedoom image contains SSE/XMM instructions unsupported by the IE x86 core" >&2
+    exit 1
+fi
+
 echo "iedoom_build tests passed"

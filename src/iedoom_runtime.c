@@ -7,10 +7,14 @@ typedef struct FILE FILE;
 
 struct FILE
 {
-    int unused;
+    unsigned char *data;
+    size_t len;
+    size_t pos;
+    int writable;
 };
 
 #define IE_TERM_OUT 0x000F0700u
+#define IEDOOM_FILE_READ_LIMIT (64u * 1024u * 1024u)
 
 volatile unsigned int iedoom_bss_probe;
 int errno;
@@ -23,25 +27,37 @@ void *memset(void *dest, int c, size_t n);
 void *memcpy(void *dest, const void *src, size_t n);
 int vprintf(const char *fmt, va_list args);
 int vfprintf(FILE *stream, const char *fmt, va_list args);
+int snprintf(char *s, size_t n, const char *fmt, ...);
 int vsnprintf(char *s, size_t n, const char *fmt, va_list args);
+int IE_FileReadAll(const char *name, void *buffer, unsigned int buffer_len,
+                   unsigned int *result_len);
 
 static size_t iedoom_heap_used;
 static unsigned int iedoom_rand_state = 1;
 
 #ifdef IEDOOM_GUEST
 #define IEDOOM_HEAP_BASE ((unsigned char *) 0x02000000u)
-#define IEDOOM_HEAP_SIZE (96u * 1024u * 1024u)
+#define IEDOOM_HEAP_SIZE (192u * 1024u * 1024u)
 #else
-static unsigned char iedoom_heap[32u * 1024u * 1024u];
+static unsigned char iedoom_heap[192u * 1024u * 1024u];
 #define IEDOOM_HEAP_BASE iedoom_heap
 #define IEDOOM_HEAP_SIZE sizeof(iedoom_heap)
 #endif
 
-typedef union
+typedef union iedoom_heap_header iedoom_heap_header_t;
+
+union iedoom_heap_header
 {
-    size_t size;
+    struct
+    {
+        size_t size;
+        int free;
+        union iedoom_heap_header *next;
+    } block;
     long double align;
-} iedoom_heap_header_t;
+};
+
+static iedoom_heap_header_t *iedoom_heap_blocks;
 
 static void iedoom_term_write_char(char c)
 {
@@ -146,12 +162,37 @@ void exit(int status)
 void *malloc(size_t size)
 {
     iedoom_heap_header_t *header;
+    iedoom_heap_header_t *prev;
     size_t total;
 
     size = (size + 7u) & ~7u;
     if (size == 0)
     {
         size = 8;
+    }
+
+    for (header = iedoom_heap_blocks; header != NULL; header = header->block.next)
+    {
+        if (header->block.free && header->block.size >= size)
+        {
+            size_t remaining = header->block.size - size;
+
+            if (remaining > sizeof(*header) + 8u)
+            {
+                iedoom_heap_header_t *split;
+
+                split = (iedoom_heap_header_t *) ((unsigned char *) (header + 1) + size);
+                split->block.size = remaining - sizeof(*split);
+                split->block.free = 1;
+                split->block.next = header->block.next;
+
+                header->block.size = size;
+                header->block.next = split;
+            }
+
+            header->block.free = 0;
+            return header + 1;
+        }
     }
 
     total = size + sizeof(*header);
@@ -161,7 +202,24 @@ void *malloc(size_t size)
     }
 
     header = (iedoom_heap_header_t *) (IEDOOM_HEAP_BASE + iedoom_heap_used);
-    header->size = size;
+    header->block.size = size;
+    header->block.free = 0;
+    header->block.next = NULL;
+
+    if (iedoom_heap_blocks == NULL)
+    {
+        iedoom_heap_blocks = header;
+    }
+    else
+    {
+        prev = iedoom_heap_blocks;
+        while (prev->block.next != NULL)
+        {
+            prev = prev->block.next;
+        }
+        prev->block.next = header;
+    }
+
     iedoom_heap_used += total;
     return header + 1;
 }
@@ -181,7 +239,28 @@ void *calloc(size_t nmemb, size_t size)
 
 void free(void *ptr)
 {
-    (void) ptr;
+    iedoom_heap_header_t *header;
+    iedoom_heap_header_t *cur;
+
+    if (ptr == NULL)
+    {
+        return;
+    }
+
+    header = ((iedoom_heap_header_t *) ptr) - 1;
+    header->block.free = 1;
+
+    for (cur = iedoom_heap_blocks; cur != NULL; cur = cur->block.next)
+    {
+        while (cur->block.next != NULL && cur->block.next->block.free
+            && cur->block.free)
+        {
+            iedoom_heap_header_t *next = cur->block.next;
+
+            cur->block.size += sizeof(*next) + next->block.size;
+            cur->block.next = next->block.next;
+        }
+    }
 }
 
 void *realloc(void *ptr, size_t size)
@@ -202,7 +281,7 @@ void *realloc(void *ptr, size_t size)
     }
 
     header = ((iedoom_heap_header_t *) ptr) - 1;
-    copy_size = header->size < size ? header->size : size;
+    copy_size = header->block.size < size ? header->block.size : size;
     result = malloc(size);
 
     if (result != NULL)
@@ -258,8 +337,14 @@ int vprintf(const char *fmt, va_list args)
 
 int vfprintf(FILE *stream, const char *fmt, va_list args)
 {
-    (void) stream;
-    return vprintf(fmt, args);
+    char buf[1024];
+
+    if (stream == NULL || stream == stdout || stream == stderr)
+    {
+        return vprintf(fmt, args);
+    }
+
+    return vsnprintf(buf, sizeof(buf), fmt, args);
 }
 
 static void iedoom_format_putc(char *s, size_t n, size_t *pos,
@@ -291,10 +376,11 @@ static void iedoom_format_write(char *s, size_t n, size_t *pos,
 static void iedoom_format_uint(char *s, size_t n, size_t *pos,
                                size_t *written, unsigned long long value,
                                unsigned int base, int width, char pad,
-                               int uppercase)
+                               int precision, int uppercase)
 {
     char tmp[32];
     int len = 0;
+    int zeroes = 0;
     const char *digits = uppercase ? "0123456789ABCDEF" : "0123456789abcdef";
 
     do
@@ -303,10 +389,26 @@ static void iedoom_format_uint(char *s, size_t n, size_t *pos,
         value /= base;
     } while (value != 0 && len < (int) sizeof(tmp));
 
-    while (width > len)
+    if (precision >= 0)
+    {
+        zeroes = precision - len;
+        if (zeroes < 0)
+        {
+            zeroes = 0;
+        }
+        pad = ' ';
+    }
+
+    while (width > len + zeroes)
     {
         iedoom_format_putc(s, n, pos, written, pad);
         --width;
+    }
+
+    while (zeroes > 0)
+    {
+        iedoom_format_putc(s, n, pos, written, '0');
+        --zeroes;
     }
 
     while (len > 0)
@@ -328,6 +430,7 @@ int vsnprintf(char *s, size_t n, const char *fmt, va_list args)
     while (*fmt != '\0')
     {
         int width = 0;
+        int precision = -1;
         char pad = ' ';
         int long_count = 0;
 
@@ -353,6 +456,16 @@ int vsnprintf(char *s, size_t n, const char *fmt, va_list args)
         {
             width = width * 10 + (*fmt - '0');
             ++fmt;
+        }
+        if (*fmt == '.')
+        {
+            precision = 0;
+            ++fmt;
+            while (*fmt >= '0' && *fmt <= '9')
+            {
+                precision = precision * 10 + (*fmt - '0');
+                ++fmt;
+            }
         }
         while (*fmt == 'l')
         {
@@ -395,7 +508,7 @@ int vsnprintf(char *s, size_t n, const char *fmt, va_list args)
                 }
                 iedoom_format_uint(s, n, &pos, &written,
                                    (unsigned long long) value, 10, width,
-                                   pad, 0);
+                                   pad, precision, 0);
                 break;
             }
             case 'u':
@@ -419,7 +532,7 @@ int vsnprintf(char *s, size_t n, const char *fmt, va_list args)
 
                 iedoom_format_uint(s, n, &pos, &written, value,
                                    *fmt == 'u' ? 10u : 16u, width, pad,
-                                   *fmt == 'X');
+                                   precision, *fmt == 'X');
                 break;
             }
             case 'p':
@@ -427,7 +540,7 @@ int vsnprintf(char *s, size_t n, const char *fmt, va_list args)
                 iedoom_format_uint(s, n, &pos, &written,
                                    (unsigned long long) (size_t)
                                    va_arg(args, void *),
-                                   16, width, '0', 0);
+                                   16, width, '0', -1, 0);
                 break;
             default:
                 iedoom_format_putc(s, n, &pos, &written, '%');
@@ -504,24 +617,93 @@ int fileno(FILE *stream)
 
 FILE *fopen(const char *path, const char *mode)
 {
-    (void) path;
-    (void) mode;
-    return NULL;
+    FILE *file;
+    unsigned char *data;
+    unsigned int len = 0;
+    int write_mode = 0;
+    const char *p;
+
+    if (path == NULL || mode == NULL)
+    {
+        errno = 2;
+        return NULL;
+    }
+
+    for (p = mode; *p != '\0'; ++p)
+    {
+        if (*p == 'w' || *p == 'a')
+        {
+            write_mode = 1;
+            break;
+        }
+    }
+
+    if (write_mode)
+    {
+        errno = 13;
+        return NULL;
+    }
+
+    data = malloc(IEDOOM_FILE_READ_LIMIT);
+    if (data == NULL)
+    {
+        errno = 12;
+        return NULL;
+    }
+
+    if (!IE_FileReadAll(path, data, IEDOOM_FILE_READ_LIMIT, &len))
+    {
+        free(data);
+        errno = 2;
+        return NULL;
+    }
+
+    file = malloc(sizeof(*file));
+    if (file == NULL)
+    {
+        free(data);
+        errno = 12;
+        return NULL;
+    }
+
+    file->data = data;
+    file->len = len;
+    file->pos = 0;
+    file->writable = 0;
+    return file;
 }
 
 int fclose(FILE *stream)
 {
-    (void) stream;
+    if (stream != NULL)
+    {
+        free(stream->data);
+        free(stream);
+    }
     return 0;
 }
 
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
-    (void) ptr;
-    (void) size;
-    (void) nmemb;
-    (void) stream;
-    return 0;
+    size_t bytes;
+    size_t available;
+
+    if (ptr == NULL || stream == NULL || size == 0 || nmemb == 0)
+    {
+        return 0;
+    }
+
+    bytes = size * nmemb;
+    available = stream->pos < stream->len ? stream->len - stream->pos : 0;
+    if (bytes > available)
+    {
+        bytes = available;
+    }
+
+    memcpy(ptr, stream->data + stream->pos, bytes);
+    stream->pos += bytes;
+
+    return bytes / size;
 }
 
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
@@ -533,35 +715,69 @@ size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 
 int feof(FILE *stream)
 {
-    (void) stream;
-    return 1;
+    return stream == NULL || stream->pos >= stream->len;
 }
 
 int fgetc(FILE *stream)
 {
-    (void) stream;
-    return -1;
+    if (stream == NULL || stream->pos >= stream->len)
+    {
+        return -1;
+    }
+
+    return stream->data[stream->pos++];
 }
 
 int ungetc(int c, FILE *stream)
 {
-    (void) c;
-    (void) stream;
+    if (stream != NULL && stream->pos > 0 && c != -1)
+    {
+        --stream->pos;
+        stream->data[stream->pos] = (unsigned char) c;
+        return c;
+    }
+
     return -1;
 }
 
 int fseek(FILE *stream, long offset, int whence)
 {
-    (void) stream;
-    (void) offset;
-    (void) whence;
+    long base;
+    long pos;
+
+    if (stream == NULL)
+    {
+        return -1;
+    }
+
+    switch (whence)
+    {
+        case 0:
+            base = 0;
+            break;
+        case 1:
+            base = (long) stream->pos;
+            break;
+        case 2:
+            base = (long) stream->len;
+            break;
+        default:
+            return -1;
+    }
+
+    pos = base + offset;
+    if (pos < 0)
+    {
+        return -1;
+    }
+
+    stream->pos = (size_t) pos;
     return 0;
 }
 
 long ftell(FILE *stream)
 {
-    (void) stream;
-    return 0;
+    return stream == NULL ? -1 : (long) stream->pos;
 }
 
 int remove(const char *path)
@@ -585,9 +801,16 @@ char *getenv(const char *name)
 
 int stat(const char *path, void *buf)
 {
-    (void) path;
     (void) buf;
-    return -1;
+    FILE *file = fopen(path, "rb");
+
+    if (file == NULL)
+    {
+        return -1;
+    }
+
+    fclose(file);
+    return 0;
 }
 
 int mkdir(const char *path, unsigned int mode)

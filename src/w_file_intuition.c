@@ -27,7 +27,6 @@
 #include "i_intuition.h"
 #include "m_misc.h"
 #include "w_file.h"
-#include "z_zone.h"
 
 #define IE_MAX_WAD_FILE_SIZE (64u * 1024u * 1024u)
 
@@ -41,22 +40,41 @@ static wad_file_t *W_Intuition_OpenFile(const char *path)
 {
     intuition_wad_file_t *result;
     byte *data;
+    byte *mapped;
     uint32_t len;
 
-    data = Z_Malloc(IE_MAX_WAD_FILE_SIZE, PU_STATIC, 0);
-
-    if (!IE_FileReadAll(path, data, IE_MAX_WAD_FILE_SIZE, &len))
+    data = malloc(IE_MAX_WAD_FILE_SIZE);
+    if (data == NULL)
     {
-        Z_Free(data);
         return NULL;
     }
 
-    result = Z_Malloc(sizeof(*result), PU_STATIC, 0);
+    if (!IE_FileReadAll(path, data, IE_MAX_WAD_FILE_SIZE, &len))
+    {
+        free(data);
+        return NULL;
+    }
+
+    mapped = malloc(len > 0 ? len : 1);
+    if (mapped == NULL)
+    {
+        free(data);
+        return NULL;
+    }
+    memcpy(mapped, data, len);
+    free(data);
+
+    result = malloc(sizeof(*result));
+    if (result == NULL)
+    {
+        free(mapped);
+        return NULL;
+    }
     result->wad.file_class = &intuition_wad_file;
-    result->wad.mapped = data;
+    result->wad.mapped = mapped;
     result->wad.length = len;
     result->wad.path = M_StringDuplicate(path);
-    result->data = data;
+    result->data = mapped;
 
     return &result->wad;
 }
@@ -66,8 +84,8 @@ static void W_Intuition_CloseFile(wad_file_t *wad)
     intuition_wad_file_t *intuition_wad = (intuition_wad_file_t *) wad;
 
     free((void *) wad->path);
-    Z_Free(intuition_wad->data);
-    Z_Free(intuition_wad);
+    free(intuition_wad->data);
+    free(intuition_wad);
 }
 
 static size_t W_Intuition_Read(wad_file_t *wad, unsigned int offset,

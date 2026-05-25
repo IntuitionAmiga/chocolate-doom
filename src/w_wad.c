@@ -192,7 +192,7 @@ wad_file_t *W_AddFile (const char *filename)
 	length = header.numlumps*sizeof(filelump_t);
 	fileinfo = Z_Malloc(length, PU_STATIC, 0);
 
-        W_Read(wad_file, header.infotableofs, fileinfo, length);
+	W_Read(wad_file, header.infotableofs, fileinfo, length);
 	numfilelumps = header.numlumps;
     }
 

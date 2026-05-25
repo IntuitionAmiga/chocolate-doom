@@ -177,6 +177,165 @@ int IE_FileReadAll(const char *name, void *buffer, uint32_t buffer_len,
     return 1;
 }
 
+int IE_FileList(const char *name, void *buffer, uint32_t buffer_len,
+                uint32_t *result_len)
+{
+    uint32_t status;
+    uint32_t len;
+
+    if (result_len != NULL)
+    {
+        *result_len = 0;
+    }
+
+    if (name == NULL || buffer == NULL)
+    {
+        return 0;
+    }
+
+    IE_MMIO_Write32(IE_FILE_NAME_PTR, (uint32_t) (uintptr_t) name);
+    IE_MMIO_Write32(IE_FILE_DATA_PTR, (uint32_t) (uintptr_t) buffer);
+    IE_MMIO_Write32(IE_FILE_DATA_LEN, buffer_len);
+    IE_MMIO_Write32(IE_FILE_CTRL, IE_FILE_OP_LIST);
+
+    status = IE_MMIO_Read32(IE_FILE_STATUS);
+    len = IE_MMIO_Read32(IE_FILE_RESULT_LEN);
+
+    if (status != 0 || len > buffer_len)
+    {
+        return 0;
+    }
+
+    if (result_len != NULL)
+    {
+        *result_len = len;
+    }
+
+    return 1;
+}
+
+static int ie_ascii_tolower(int c)
+{
+    if (c >= 'A' && c <= 'Z')
+    {
+        return c - 'A' + 'a';
+    }
+
+    return c;
+}
+
+static int ie_name_equal_fold(const char *a, int a_len, const char *b)
+{
+    int b_len = (int) strlen(b);
+    int i;
+
+    while (a_len > 0 && a[a_len - 1] == '/')
+    {
+        --a_len;
+    }
+    while (b_len > 0 && b[b_len - 1] == '/')
+    {
+        --b_len;
+    }
+    if (a_len != b_len)
+    {
+        return 0;
+    }
+
+    for (i = 0; i < a_len; ++i)
+    {
+        if (ie_ascii_tolower((unsigned char) a[i])
+         != ie_ascii_tolower((unsigned char) b[i]))
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int IE_FileExists(const char *name)
+{
+    char dir[256];
+    char entries[8192];
+    const char *path;
+    const char *base;
+    const char *slash;
+    uint32_t len = 0;
+    uint32_t i = 0;
+
+    if (name == NULL || *name == '\0')
+    {
+        return 0;
+    }
+
+    path = name;
+    while (path[0] == '.' && (path[1] == '/' || path[1] == '\\'))
+    {
+        path += 2;
+    }
+    if (*path == '\0')
+    {
+        return IE_FileList(".", entries, sizeof(entries) - 1, &len);
+    }
+
+    slash = strrchr(path, '/');
+    {
+        const char *backslash = strrchr(path, '\\');
+        if (backslash != NULL && (slash == NULL || backslash > slash))
+        {
+            slash = backslash;
+        }
+    }
+
+    if (slash == NULL)
+    {
+        strcpy(dir, ".");
+        base = path;
+    }
+    else
+    {
+        size_t dir_len = (size_t) (slash - path);
+        if (dir_len == 0 || dir_len >= sizeof(dir))
+        {
+            return 0;
+        }
+        memcpy(dir, path, dir_len);
+        dir[dir_len] = '\0';
+        base = slash + 1;
+    }
+
+    if (*base == '\0' || !IE_FileList(dir, entries, sizeof(entries) - 1, &len))
+    {
+        return 0;
+    }
+    if (len >= sizeof(entries))
+    {
+        len = sizeof(entries) - 1;
+    }
+    entries[len] = '\0';
+
+    while (i < len)
+    {
+        uint32_t start = i;
+        while (i < len && entries[i] != '\r' && entries[i] != '\n')
+        {
+            ++i;
+        }
+        if (i > start
+         && ie_name_equal_fold(entries + start, (int) (i - start), base))
+        {
+            return 1;
+        }
+        while (i < len && (entries[i] == '\r' || entries[i] == '\n'))
+        {
+            ++i;
+        }
+    }
+
+    return 0;
+}
+
 void IE_MusicSetVolume(int volume)
 {
     if (ie_music_mode == IE_MUSIC_MODE_NONE)

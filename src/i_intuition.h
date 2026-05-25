@@ -100,6 +100,9 @@ int IE_TranslateScancode(uint8_t scancode, int *pressed);
 
 int IE_FileReadAll(const char *name, void *buffer, uint32_t buffer_len,
                    uint32_t *result_len);
+int IE_FileList(const char *name, void *buffer, uint32_t buffer_len,
+                uint32_t *result_len);
+int IE_FileExists(const char *name);
 
 void IE_MusicSetVolume(int volume);
 void IE_MusicStart(uint32_t data_addr, uint32_t len, int looping);
