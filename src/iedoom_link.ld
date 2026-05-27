@@ -5,6 +5,14 @@ ENTRY(_start)
 PROGRAM_START = 0x1000;
 MMIO_START = 0x000F0000;
 MMIO_END = 0x00100000;
+HEAP_BASE = 0x02000000;
+STACK_TOP = 0x00FF0000;
+
+MEMORY
+{
+    pre_mmio (rwx) : ORIGIN = 0x00000000, LENGTH = MMIO_START
+    post_mmio (rw) : ORIGIN = MMIO_END, LENGTH = STACK_TOP - MMIO_END
+}
 
 PHDRS
 {
@@ -15,32 +23,40 @@ PHDRS
 
 SECTIONS
 {
-    . = 0;
-    .reset : {
+    .reset 0 : {
         KEEP(*(.reset))
-    } :reset
+    } > pre_mmio :reset
 
-    . = PROGRAM_START;
-    .text : {
+    .text PROGRAM_START : {
         KEEP(*(.text.entry))
         *(.text .text.*)
-    } :text
+    } > pre_mmio :text
 
     .rodata : {
         *(.rodata .rodata.*)
-    } :text
+    } > pre_mmio :text
 
     .data : {
         *(.data .data.*)
-    } :data
+    } > pre_mmio :data
 
-    . = MAX(., MMIO_END);
-    .bss (NOLOAD) : {
+    /*
+     * Allocated orphan sections placed after .data inherit pre_mmio. If any
+     * such loadable section reaches the fixed MMIO aperture, ld reports a
+     * pre_mmio overflow before this script moves .bss above MMIO_END.
+     */
+    __load_end_before_mmio = .;
+    ASSERT(. <= MMIO_START, "IEDoom x86 loadable sections overlap the IE MMIO aperture")
+
+    .bss ORIGIN(post_mmio) (NOLOAD) : {
         __bss_start = .;
         *(COMMON)
         *(.bss .bss.*)
         __bss_end = .;
-    } :data
+    } > post_mmio :data
+
+    __heap_base = HEAP_BASE;
+    __stack_top = STACK_TOP;
 
     /DISCARD/ : {
         *(.comment)

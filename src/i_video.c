@@ -47,16 +47,20 @@ int screen_height = SCREENHEIGHT;
 unsigned int joywait = 0;
 pixel_t *I_VideoBuffer = NULL;
 
-static pixel_t ie_framebuffer[SCREENWIDTH * SCREENHEIGHT];
+static pixel_t ie_draw_framebuffer[SCREENWIDTH * SCREENHEIGHT];
+static pixel_t ie_present_framebuffers[2][SCREENWIDTH * SCREENHEIGHT];
+static int ie_present_index;
 static int ie_last_mouse_buttons;
 
 void I_InitGraphics(void)
 {
-    I_VideoBuffer = ie_framebuffer;
-    memset(I_VideoBuffer, 0, sizeof(ie_framebuffer));
+    I_VideoBuffer = ie_draw_framebuffer;
+    memset(ie_draw_framebuffer, 0, sizeof(ie_draw_framebuffer));
+    memset(ie_present_framebuffers, 0, sizeof(ie_present_framebuffers));
+    ie_present_index = 0;
     IE_InputInit();
-    IE_VideoInit((uint32_t) (uintptr_t) I_VideoBuffer);
-    I_VideoBuffer = ie_framebuffer;
+    IE_VideoInit((uint32_t) (uintptr_t) ie_present_framebuffers[ie_present_index]);
+    I_VideoBuffer = ie_draw_framebuffer;
 }
 
 void I_GraphicsCheckCommandLine(void) {}
@@ -64,7 +68,17 @@ void I_ShutdownGraphics(void) {}
 void I_SetPalette(byte *palette) { IE_VideoSetPalette(palette); }
 int I_GetPaletteIndex(int r, int g, int b) { (void) g; (void) b; return r; }
 void I_UpdateNoBlit(void) {}
-void I_FinishUpdate(void) {}
+void I_FinishUpdate(void)
+{
+    int next_present = ie_present_index ^ 1;
+
+    memcpy(ie_present_framebuffers[next_present],
+           ie_draw_framebuffer,
+           sizeof(ie_draw_framebuffer));
+    ie_present_index = next_present;
+    IE_MMIO_Write32(IE_VIDEO_FB_BASE,
+                    (uint32_t) (uintptr_t) ie_present_framebuffers[ie_present_index]);
+}
 void I_ReadScreen(pixel_t *scr)
 {
     memcpy(scr, I_VideoBuffer, SCREENWIDTH * SCREENHEIGHT * sizeof(*scr));

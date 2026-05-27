@@ -145,6 +145,16 @@ if ! grep -q 'defined(IEDOOM_M68K)' "$runtime"; then
     exit 1
 fi
 
+if ! grep -q 'ie_present_framebuffers\[2\]' src/i_video.c; then
+    echo "IEDoom video must use alternate present buffers instead of live draw-buffer scanout" >&2
+    exit 1
+fi
+
+if ! grep -q 'IE_MMIO_Write32(IE_VIDEO_FB_BASE' src/i_video.c; then
+    echo "IEDoom video must flip VIDEO_FB_BASE from I_FinishUpdate" >&2
+    exit 1
+fi
+
 out="${1:-build/iedoom.ie68}"
 if command -v m68k-elf-gcc >/dev/null 2>&1 \
  || command -v m68k-atari-mint-gcc >/dev/null 2>&1 \

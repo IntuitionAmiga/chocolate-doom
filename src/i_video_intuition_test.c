@@ -52,26 +52,44 @@ static void expect_write(int i, uint32_t addr, uint32_t value)
     assert(writes[i].value == value);
 }
 
-static void test_framebuffer_identity_after_present(void)
+static void reset_writes(void)
+{
+    memset(writes, 0, sizeof(writes));
+    num_writes = 0;
+}
+
+static void test_framebuffer_separate_scanout_after_present(void)
 {
     pixel_t copy[SCREENWIDTH * SCREENHEIGHT];
+    uint32_t initial_scanout;
+    uint32_t draw_buffer_addr;
+    uint32_t presented_scanout;
     int i;
 
     IE_TestSetMMIO(read32, write32);
     I_InitGraphics();
+    draw_buffer_addr = (uint32_t) (uintptr_t) I_VideoBuffer;
 
     expect_write(0, IE_MOUSE_CTRL, 1);
     expect_write(1, IE_VIDEO_MODE, IE_MODE_320X200);
     expect_write(2, IE_VIDEO_COLOR_MODE, IE_VIDEO_CLUT8);
-    expect_write(3, IE_VIDEO_FB_BASE, (uint32_t) (uintptr_t) I_VideoBuffer);
+    expect_write(3, IE_VIDEO_FB_BASE, writes[3].value);
     expect_write(4, IE_VIDEO_CTRL, 1);
+    initial_scanout = writes[3].value;
+    assert(initial_scanout != draw_buffer_addr);
 
     for (i = 0; i < SCREENWIDTH * SCREENHEIGHT; ++i)
     {
         I_VideoBuffer[i] = (pixel_t) (i & 0xff);
     }
 
+    reset_writes();
     I_FinishUpdate();
+    expect_write(0, IE_VIDEO_FB_BASE, writes[0].value);
+    presented_scanout = writes[0].value;
+    assert(presented_scanout != draw_buffer_addr);
+    assert(presented_scanout != initial_scanout);
+
     memset(copy, 0, sizeof(copy));
     I_ReadScreen(copy);
 
@@ -80,7 +98,7 @@ static void test_framebuffer_identity_after_present(void)
 
 int main(void)
 {
-    test_framebuffer_identity_after_present();
+    test_framebuffer_separate_scanout_after_present();
     puts("i_video_intuition tests passed");
     return 0;
 }
