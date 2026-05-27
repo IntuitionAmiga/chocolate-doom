@@ -23,6 +23,20 @@ for symbol in MMIO_START MMIO_END HEAP_BASE STACK_TOP __bss_start __bss_end __he
     fi
 done
 
+for flag in \
+    "-Ofast" \
+    "-march=i386" \
+    "-mtune=i386" \
+    "-mno-sse" \
+    "-mno-sse2" \
+    "-mno-mmx"
+do
+    if ! grep -q -- "$flag" "$script"; then
+        echo "x86 build script missing required flag: $flag" >&2
+        exit 1
+    fi
+done
+
 if ! grep -q 'ASSERT(. <= MMIO_START' "$linker"; then
     echo "x86 linker script must reject loadable sections that overlap MMIO" >&2
     exit 1

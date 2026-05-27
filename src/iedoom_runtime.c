@@ -877,6 +877,19 @@ unsigned long long __umoddi3(unsigned long long n, unsigned long long d)
     return n - __udivdi3(n, d) * d;
 }
 
+unsigned long long __udivmoddi4(unsigned long long n, unsigned long long d,
+                                unsigned long long *r)
+{
+    unsigned long long q = __udivdi3(n, d);
+
+    if (r != NULL)
+    {
+        *r = (d == 0) ? 0 : n - q * d;
+    }
+
+    return q;
+}
+
 long long __divdi3(long long n, long long d)
 {
     int negative = 0;

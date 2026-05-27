@@ -59,7 +59,7 @@ if [ -z "${M68K_CC:-}" ] || [ -z "${M68K_OBJCOPY:-}" ] || [ -z "${M68K_NM:-}" ] 
 fi
 
 cpu_flags="-m68020 -mtune=68020"
-opt_flags="-O2 -ffreestanding -nostdlib -fno-builtin -fno-pic -fno-pie -fno-stack-protector"
+opt_flags="-Ofast -ffreestanding -nostdlib -fno-builtin -fno-pic -fno-pie -fno-stack-protector"
 cflags="$cpu_flags $opt_flags -fno-asynchronous-unwind-tables \
     -DINTUITION_ENGINE -DIEDOOM_GUEST -DIEDOOM_M68K -DDISABLE_SDL2MIXER -DDISABLE_SDL2NET \
     -I$config_dir -Isrc/iedoom/include -Isrc -I."

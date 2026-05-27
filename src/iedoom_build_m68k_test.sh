@@ -20,7 +20,7 @@ done
 for flag in \
     "-m68020" \
     "-mtune=68020" \
-    "-O2" \
+    "-Ofast" \
     "-ffreestanding" \
     "-nostdlib" \
     "-fno-builtin" \

@@ -9,7 +9,7 @@ libgcc=$(cc -m32 -print-libgcc-file-name)
 rm -rf "$tmp"
 mkdir -p "$tmp" "$(dirname "$out")" "$(dirname "$elf")"
 
-cflags="-m32 -march=i386 -mno-sse -mno-sse2 -mno-mmx \
+cflags="-m32 -Ofast -march=i386 -mtune=i386 -mno-sse -mno-sse2 -mno-mmx \
     -ffreestanding -fno-builtin -fno-pic -fno-pie \
     -fno-stack-protector -fno-asynchronous-unwind-tables \
     -DINTUITION_ENGINE -DIEDOOM_GUEST -DDISABLE_SDL2MIXER -DDISABLE_SDL2NET \
