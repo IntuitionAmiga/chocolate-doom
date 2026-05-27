@@ -150,12 +150,19 @@ void exit(int status)
 {
     (void) status;
 
+#if defined(IEDOOM_M68K)
+    for (;;)
+    {
+        __asm__ volatile ("stop #0x2700");
+    }
+#else
     __asm__ volatile (
         "cli\n"
         "1:\n"
         "hlt\n"
         "jmp 1b\n"
     );
+#endif
     __builtin_unreachable();
 }
 
@@ -1205,9 +1212,20 @@ char *strstr(const char *haystack, const char *needle)
     return NULL;
 }
 
+#if defined(IEDOOM_M68K)
+__attribute__((noreturn, used))
+#else
 __attribute__((naked, noreturn, section(".text.entry"), used))
+#endif
 void iedoom_entry(void)
 {
+#if defined(IEDOOM_M68K)
+    (void) iedoom_main();
+    for (;;)
+    {
+        __asm__ volatile ("stop #0x2700");
+    }
+#else
     __asm__ volatile (
         "call iedoom_main\n"
         "cli\n"
@@ -1215,4 +1233,5 @@ void iedoom_entry(void)
         "hlt\n"
         "jmp 1b\n"
     );
+#endif
 }
