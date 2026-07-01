@@ -58,7 +58,7 @@ if [ -z "${M68K_CC:-}" ] || [ -z "${M68K_OBJCOPY:-}" ] || [ -z "${M68K_NM:-}" ] 
     exit 1
 fi
 
-cpu_flags="-m68020 -mtune=68020"
+cpu_flags="-m68020 -mtune=68020 -m68881 -mhard-float"
 opt_flags="-Ofast -ffreestanding -nostdlib -fno-builtin -fno-pic -fno-pie -fno-stack-protector"
 cflags="$cpu_flags $opt_flags -fno-asynchronous-unwind-tables \
     -DINTUITION_ENGINE -DIEDOOM_GUEST -DIEDOOM_M68K -DDISABLE_SDL2MIXER -DDISABLE_SDL2NET \

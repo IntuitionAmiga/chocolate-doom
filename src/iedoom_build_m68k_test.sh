@@ -20,6 +20,8 @@ done
 for flag in \
     "-m68020" \
     "-mtune=68020" \
+    "-m68881" \
+    "-mhard-float" \
     "-Ofast" \
     "-ffreestanding" \
     "-nostdlib" \
