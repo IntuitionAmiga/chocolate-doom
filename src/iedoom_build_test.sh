@@ -27,6 +27,9 @@ for flag in \
     "-Ofast" \
     "-march=i386" \
     "-mtune=i386" \
+    "-m80387" \
+    "-mhard-float" \
+    "-mfpmath=387" \
     "-mno-sse" \
     "-mno-sse2" \
     "-mno-mmx"
@@ -115,6 +118,11 @@ fi
 
 if objdump -d "$elf" | grep -Eiq '\<xmm[0-9]+\>|movdqu|movaps|movups'; then
     echo "iedoom image contains SSE/XMM instructions unsupported by the IE x86 core" >&2
+    exit 1
+fi
+
+if ! objdump -d "$elf" | grep -Eiq '\<(fld|fst|fadd|fsub|fmul|fdiv|fild|fist|fnst|fcom)'; then
+    echo "iedoom image does not contain expected x87 hard-float instructions" >&2
     exit 1
 fi
 

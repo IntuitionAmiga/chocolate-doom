@@ -4,12 +4,14 @@ set -eu
 out="${1:-build/iedoom.ie86}"
 tmp="${TMPDIR:-/tmp}/iedoom-build"
 elf="${out%.ie86}.elf"
-libgcc=$(cc -m32 -print-libgcc-file-name)
+cpu_flags="-m32 -march=i386 -mtune=i386 -m80387 -mhard-float -mfpmath=387 \
+    -mno-sse -mno-sse2 -mno-mmx"
+libgcc=$(cc $cpu_flags -print-libgcc-file-name)
 
 rm -rf "$tmp"
 mkdir -p "$tmp" "$(dirname "$out")" "$(dirname "$elf")"
 
-cflags="-m32 -Ofast -march=i386 -mtune=i386 -mno-sse -mno-sse2 -mno-mmx \
+cflags="$cpu_flags -Ofast \
     -ffreestanding -fno-builtin -fno-pic -fno-pie \
     -fno-stack-protector -fno-asynchronous-unwind-tables \
     -DINTUITION_ENGINE -DIEDOOM_GUEST -DDISABLE_SDL2MIXER -DDISABLE_SDL2NET \
