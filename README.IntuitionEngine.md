@@ -1,6 +1,6 @@
 # Intuition Engine Port Notes
 
-This tree contains an experimental Intuition Engine backend for the Doom target.
+This tree contains an Intuition Engine backend for the Doom target.
 It is selected with the `INTUITION_ENGINE` compile definition and is intended for
 a flat x86 `.ie86` guest image.
 
